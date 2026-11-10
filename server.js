@@ -262,7 +262,7 @@ app.get('/api/estado', requireAuth, ruta(async (req, res) => {
   const [dias] = await pool.query(`
     SELECT DATEDIFF(CURDATE(), DATE(fecha)) AS hace, SUM(precio) AS total
       FROM ventas WHERE fecha >= CURDATE() - INTERVAL 6 DAY AND fecha < CURDATE() + INTERVAL 1 DAY
-     GROUP BY DATE(fecha)`);
+     GROUP BY hace`);
   const semana = [0, 0, 0, 0, 0, 0, 0];   // de hace 6 días a hoy
   dias.forEach(d => { const k = Number(d.hace); if (k >= 0 && k <= 6) semana[6 - k] = Number(d.total); });
   const [cont] = await pool.query('SELECT nombre, ultimo FROM contadores');
