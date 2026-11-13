@@ -12,14 +12,11 @@ const MAT = {
   acero:{name:'Acero', full:'Acero quirúrgico', pre:'ACE'},
   'plata-oro':{name:'Plata y oro', full:'Plata y oro', pre:'PYO'}
 };
-const CAT = {
-  anillo:{pl:'Anillos', one:'Anillo'},
-  cadena:{pl:'Cadenas', one:'Cadena'},
-  pulsera:{pl:'Pulseras', one:'Pulsera'},
-  aros:{pl:'Aros', one:'Aros'},
-  colgante:{pl:'Colgantes', one:'Colgante'},
-  reloj:{pl:'Relojes', one:'Reloj'}
-};
+/* Tipos de pieza con sus subcategorías y variantes: la lista está en categorias.js
+   (la comparte el servidor). CAT es el atajo con los nombres de cada tipo. */
+const CATS = window.CATEGORIAS;
+const TIPOS = CATS.TIPOS;
+const CAT = Object.fromEntries(Object.entries(TIPOS).map(([k, t]) => [k, {pl:t.plural, one:t.una}]));
 /* Íconos de categoría en línea roja, como las historias destacadas del Instagram */
 const ICONOS = {
   todas:'<path d="M16.5 13h15l6 7.5L24 36 10.5 20.5z"/><path d="M10.5 20.5h27M20.5 13l-2.6 7.5L24 36l6.1-15.5-2.6-7.5"/><path d="M38 9.5v4M36 11.5h4" stroke-width="1.3"/>',
@@ -27,8 +24,7 @@ const ICONOS = {
   cadena:'<g transform="rotate(-38 24 24)"><rect x="3.5" y="20" width="12" height="8" rx="4"/><rect x="12.5" y="21.6" width="9" height="4.8" rx="2.4"/><rect x="18" y="20" width="12" height="8" rx="4"/><rect x="27" y="21.6" width="9" height="4.8" rx="2.4"/><rect x="32.5" y="20" width="12" height="8" rx="4"/></g>',
   pulsera:'<circle cx="36.50" cy="24.00" r="2.9"/><circle cx="34.83" cy="30.25" r="2.9"/><circle cx="30.25" cy="34.83" r="2.9"/><circle cx="24.00" cy="36.50" r="2.9"/><circle cx="17.75" cy="34.83" r="2.9"/><circle cx="13.17" cy="30.25" r="2.9"/><circle cx="11.50" cy="24.00" r="2.9"/><circle cx="13.17" cy="17.75" r="2.9"/><circle cx="17.75" cy="13.17" r="2.9"/><circle cx="24.00" cy="11.50" r="2.9"/><circle cx="30.25" cy="13.17" r="2.9"/><circle cx="34.83" cy="17.75" r="2.9"/><circle cx="24" cy="24" r="12.5" stroke-width=".9"/>',
   aros:'<circle cx="16" cy="9.5" r="2.2"/><path d="M16 11.7v4.3M16 16c3.4 5 6.6 9 6.6 13.2a6.6 6.6 0 0 1-13.2 0C9.4 25 12.6 21 16 16z"/><path d="M16 23.4c1.6 2.4 3 4.4 3 6.2a3 3 0 0 1-6 0c0-1.8 1.4-3.8 3-6.2z" stroke-width="1.1"/><circle cx="32" cy="9.5" r="2.2"/><path d="M32 11.7v4.3M32 16c3.4 5 6.6 9 6.6 13.2a6.6 6.6 0 0 1-13.2 0C25.4 25 28.6 21 32 16z"/><path d="M32 23.4c1.6 2.4 3 4.4 3 6.2a3 3 0 0 1-6 0c0-1.8 1.4-3.8 3-6.2z" stroke-width="1.1"/>',
-  colgante:'<path d="M8.5 8c2.6 9.4 8.4 15.6 15.5 16.4C31.1 23.6 36.9 17.4 39.5 8" stroke-dasharray=".1 3.1" stroke-width="2.2"/><path d="M24 24.4v2.2"/><circle cx="24" cy="32.6" r="6"/><circle cx="24" cy="32.6" r="2.6"/><path d="M13.5 22.5l1.6 1.6-1.6 1.6-1.6-1.6zM34.5 22.5l1.6 1.6-1.6 1.6-1.6-1.6z" stroke-width="1.1"/>',
-  reloj:'<rect x="16" y="15.5" width="16" height="17" rx="4.5"/><rect x="18.6" y="18.1" width="10.8" height="11.8" rx="2.8" stroke-width="1"/><path d="M24 20.6V24l2.4 1.5"/><path d="M19.2 15.5l1-7h7.6l1 7M19.2 32.5l1 7h7.6l1-7"/><path d="M32 22.2h1.6v3.6H32"/>'
+  dije:'<path d="M8.5 8c2.6 9.4 8.4 15.6 15.5 16.4C31.1 23.6 36.9 17.4 39.5 8" stroke-dasharray=".1 3.1" stroke-width="2.2"/><path d="M24 24.4v2.2"/><circle cx="24" cy="32.6" r="6"/><circle cx="24" cy="32.6" r="2.6"/><path d="M13.5 22.5l1.6 1.6-1.6 1.6-1.6-1.6zM34.5 22.5l1.6 1.6-1.6 1.6-1.6-1.6z" stroke-width="1.1"/>'
 };
 const icono = k => `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONOS[k]}</svg>`;
 const PAYS = ['Efectivo','Débito','Crédito','Transferencia','Mercado Pago'];
@@ -62,6 +58,9 @@ const coarse = matchMedia('(pointer: coarse)').matches;
 const plural = (k, one, many) => `${k} ${k === 1 ? one : many}`;
 const digitsOf = v => String(v).replace(/\D/g, '');
 const xIcon = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+/* La categoría de una pieza o foto, como la entiende categorias.js */
+const catDe = x => ({categoria:x.cat, subcategoria:x.sub, variante:x.vari});
+const catCompleta = x => CATS.leer(catDe(x)).completa;
 
 /* Formatea un precio mientras se escribe sin que el cursor salte al final */
 function formatMoneyInput(el, kind){
@@ -128,7 +127,7 @@ function art(p){
       break;
     case 'cadena': {
       const d = 'M52 44C50 104 74 150 100 150S150 104 148 44';
-      const thick = has('groumet', 'cubana', 'eslabon', 'trenz'), rolo = has('rolo'), figaro = has('figaro');
+      const thick = has('groumet', 'cubana', 'eslabon', 'trenz', 'singapur', 'marinero'), rolo = has('rolo', 'bolita'), figaro = has('figaro');
       const dash = thick ? '6.5 2.4' : rolo ? '0.1 5.2' : figaro ? '9 2.4 3 2.4 3 2.4' : '3.4 2';
       const w = thick ? 4.6 : rolo ? 4 : 2.6;
       g = `<path d="${d}" ${L(1, b)}/><path d="${d}" ${L(w)} stroke-dasharray="${dash}"/>`;
@@ -142,14 +141,14 @@ function art(p){
         let mesh = '';
         for (let x = 58; x <= 142; x += 6){ const t = (x - 100) / 54; mesh += `<path d="M${x} ${fx(96 + 20 * Math.sqrt(1 - t * t))}v11" ${L(.7, b)}/>`; }
         g = `<path d="M46 96v12a54 20 0 0 0 108 0V96" ${L(2)}/>${E(54, 20, 96, L(2))}${E(49, 16.5, 96, L(1.1, b))}${mesh}<rect x="91" y="113" width="18" height="11" rx="2" ${W(1.4)}/>`; sy = 136;
-      } else if (has('tennis')){
+      } else if (has('tennis', 'swarovski')){
         g = E(52, 22, 104, L(1.2, b)) + ellipsePts(100, 104, 52, 22, 28).map(([x, y]) => `<circle cx="${fx(x)}" cy="${fx(y)}" r="3.4" ${W(1.3)}/>`).join(''); sy = 134;
       } else if (has('doble')){
         g = E(52, 22, 100, `${L(3)} stroke-dasharray="4.6 2.2"`) + E(47, 19, 110, p.m === 'plata-oro' ? L(2.6, b) : `${L(3, b)} stroke-dasharray="4.6 2.2"`); sy = 136;
       } else if (has('rigid', 'esclava')){
         g = `<path d="M48 104v8a52 21 0 0 0 104 0v-8" ${L(2.2)}/>${E(52, 21, 104, L(2.2))}${E(47, 17.5, 104, L(1.1, b))}`; sy = 136;
       } else {
-        const thick = has('eslabon', 'grueso');
+        const thick = has('eslabon', 'grueso', 'pesada');
         g = E(52, 22, 104, L(1, b)) + E(52, 22, 104, `${L(thick ? 4.8 : 2.8)} stroke-dasharray="${thick ? '7.5 2.8' : '3.4 2.8'}"`);
         if (has('dije')) g += [78, 100, 122].map(x => { const t = (x - 100) / 52, y = 104 + 22 * Math.sqrt(1 - t * t); return `<path d="M${x} ${fx(y)}v7" ${L(1.2)}/><path d="${heart(x, y + 14, 6.5)}" ${W(1.4)}/>`; }).join('');
         else sy = 134;
@@ -158,16 +157,18 @@ function art(p){
     }
     case 'aros': {
       const pair = fn => fn(72) + fn(128);
-      if (has('argolla')) g = pair(x => `<circle cx="${x}" cy="108" r="22" ${L(2.6)}/><circle cx="${x}" cy="85" r="2" fill="${a}"/>`);
+      if (has('argolla', 'italian')) g = pair(x => `<circle cx="${x}" cy="108" r="22" ${L(2.6)}/><circle cx="${x}" cy="85" r="2" fill="${a}"/>`);
+      else if (has('hoggi')) g = pair(x => `<circle cx="${x}" cy="104" r="15" ${L(3.4)}/><circle cx="${x}" cy="88" r="1.8" fill="${a}"/>`);
       else if (has('abridor')) g = pair(x => `<circle cx="${x}" cy="104" r="14" ${L(2.2)}/><path d="M${x - 3.5} 90h7" ${L(2.6, b)}/>`);
       else if (has('pasante', 'bebe')) g = pair(x => `<circle cx="${x}" cy="104" r="14" ${L(1.3, b)}/><circle cx="${x}" cy="104" r="8.5" ${W(2)}/><circle cx="${x - 2.5}" cy="101.5" r="1.6" fill="${b}"/>`);
-      else if (has('gota')) g = pair(x => `<circle cx="${x}" cy="72" r="4.2" ${W(1.6)}/><path d="M${x} 76.5v8" ${L(1.4)}/><path d="M${x} 86c4 7 13 16 13 26a13 13 0 0 1-26 0c0-10 9-19 13-26z" ${W(1.8)}/><path d="M${x} 97c2.4 4.4 7 9.6 7 14.6a7 7 0 0 1-14 0c0-5 4.6-10.2 7-14.6z" ${L(1.1, b)}/>`);
+      else if (has('gota', 'swarovski')) g = pair(x => `<circle cx="${x}" cy="72" r="4.2" ${W(1.6)}/><path d="M${x} 76.5v8" ${L(1.4)}/><path d="M${x} 86c4 7 13 16 13 26a13 13 0 0 1-26 0c0-10 9-19 13-26z" ${W(1.8)}/><path d="M${x} 97c2.4 4.4 7 9.6 7 14.6a7 7 0 0 1-14 0c0-5 4.6-10.2 7-14.6z" ${L(1.1, b)}/>`);
       else if (has('clip', 'geometr')) g = pair(x => { const pts = Array.from({length:6}, (_, k) => { const t = Math.PI / 6 + k * Math.PI / 3; return `${fx(x + 19 * Math.cos(t))},${fx(108 + 19 * Math.sin(t))}`; }).join(' '); return `<path d="M${x} 89v-7" ${L(1.6)}/><circle cx="${x}" cy="79" r="2.4" ${L(1.4)}/><polygon points="${pts}" ${L(2.4)}/>`; });
-      else if (has('boton')) g = pair(x => `<circle cx="${x}" cy="104" r="13" ${W(1.8)}/><path d="M${x} 91v26M${fx(x - 11.3)} 97.5l22.6 13M${fx(x - 11.3)} 110.5l22.6-13" ${L(.9, b)}/>`);
+      else if (has('boton', 'micropav')) g = pair(x => `<circle cx="${x}" cy="104" r="13" ${W(1.8)}/><path d="M${x} 91v26M${fx(x - 11.3)} 97.5l22.6 13M${fx(x - 11.3)} 110.5l22.6-13" ${L(.9, b)}/>`);
       else if (has('combinad')) g = pair(x => `<circle cx="${x}" cy="110" r="21" ${L(2.4)}/><circle cx="${x}" cy="101" r="11.5" ${L(2.2, b)}/><circle cx="${x}" cy="88" r="2" fill="${a}"/>`);
       else g = pair(x => `<circle cx="${x}" cy="108" r="20" ${L(2.6)}/><circle cx="${x}" cy="87" r="2" fill="${a}"/>`);
       break;
     }
+    case 'dije':
     case 'colgante': {
       const fine = `${L(1.3)} stroke-dasharray="2 2.2"`;
       if (has('infinito')){
@@ -254,10 +255,13 @@ async function api(path, opts = {}){
 const apiFoto = (path, blob, method = 'POST') => api(path, {method, body:blob, headers:{'Content-Type':blob.type || 'image/jpeg'}});
 const enc = encodeURIComponent;
 /* Lo que manda el servidor, con los nombres cortos que usa la página */
-const dePieza = r => ({id:r.id, c:r.codigo, n:r.nombre, m:r.material, cat:r.categoria, p:r.precio, s:r.estado, det:r.detalle || '', d:r.dias, o:r.id, ml:MAT[r.material].full, img:r.foto || null,
+const deCat = r => ({cat:r.categoria || null, sub:r.subcategoria || null, vari:r.variante || null});
+/* hay: lo que encuentra la búsqueda (nombre, código y categoría, sin tildes) */
+const conBusqueda = x => Object.assign(x, {hay:norm(`${x.n} ${x.c} ${CATS.texto(catDe(x), ' ')}`)});
+const dePieza = r => conBusqueda({id:r.id, c:r.codigo, n:r.nombre, m:r.material, ...deCat(r), p:r.precio, s:r.estado, det:r.detalle || '', d:r.dias, o:r.id, ml:MAT[r.material].full, img:r.foto || null,
   res:r.reserva ? {who:r.reserva.cliente, sena:r.reserva.sena || 0, d:r.reserva.dias} : null});
-const deVenta = r => ({id:r.id, c:r.codigo, n:r.nombre, m:r.material, cat:r.categoria, p:r.precio, pay:r.medio, t:r.hora, img:r.foto || null});
-const dePendiente = r => ({id:r.id, num:r.numero, img:r.foto, m:r.material || null, cat:r.categoria || null, p:r.precio || 0, n:r.nombre || '', det:r.detalle || ''});
+const deVenta = r => ({id:r.id, c:r.codigo, n:r.nombre, m:r.material, ...deCat(r), p:r.precio, pay:r.medio, t:r.hora, img:r.foto || null});
+const dePendiente = r => ({id:r.id, num:r.numero, img:r.foto, m:r.material || null, ...deCat(r), p:r.precio || 0, n:r.nombre || '', det:r.detalle || ''});
 async function loadState(){
   const s = await api('/estado');
   P = s.piezas.map(dePieza);
@@ -276,12 +280,16 @@ function busy(btn, label){
 }
 
 /* ── Stock ── */
-const st = {mat:null, cat:null, q:'', sort:'recent'};
-function matches(p, useMat){
+const st = {mat:null, cat:null, sub:null, vari:null, q:'', sort:'recent'};
+/* nivel: hasta qué filtro de categoría se mira (1 tipo, 2 subcategoría, 3 variante);
+   sirve para contar las opciones de cada fila sin el filtro de esa misma fila */
+function matches(p, useMat, nivel = 3){
   if (useMat && st.mat && p.m !== st.mat) return false;
   if (st.cat && p.cat !== st.cat) return false;
+  if (nivel >= 2 && st.sub && p.sub !== st.sub) return false;
+  if (nivel >= 3 && st.vari && p.vari !== st.vari) return false;
   const q = norm(st.q.trim());
-  return !q || norm(p.n + ' ' + p.c).includes(q);
+  return !q || p.hay.includes(q);
 }
 const SORTS = {
   recent:(a, b) => a.d - b.d || b.o - a.o,
@@ -291,7 +299,7 @@ const SORTS = {
 };
 /* Próximo código de cada material: el servidor lleva la cuenta (contando las vendidas), así nunca se repite */
 const nextCode = m => `${MAT[m].pre}-${String((ULT[m] || 0) + 1).padStart(3, '0')}`;
-const autoName = x => `${CAT[x.cat].one} de ${MAT[x.m].name.toLowerCase()}`;
+const autoName = x => `${CATS.nombre(catDe(x))} de ${MAT[x.m].name.toLowerCase()}`;
 function renderFacts(){
   const reserved = P.filter(p => p.s === 'reservado').length;
   const value = P.reduce((s, p) => s + p.p, 0);
@@ -319,6 +327,25 @@ function renderCats(){
   }
   box.querySelectorAll('.cat').forEach(b => b.setAttribute('aria-pressed', String((b.dataset.c || null) === st.cat)));
 }
+/* Al elegir un tipo aparece la fila de sus subcategorías; si la elegida tiene otro nivel,
+   una fila más abajo. Cada opción dice cuántas piezas hay con los demás filtros puestos. */
+function renderSubs(){
+  const box = $('#subs'), t = st.cat && TIPOS[st.cat];
+  box.hidden = !t;
+  if (!t){ box.innerHTML = ''; return; }
+  const chip = (attr, k, label, count, on) => `<button type="button" class="chip${count ? '' : ' cero'}" data-${attr}="${k}" aria-pressed="${on}">${esc(label)}<span class="n">${count}</span></button>`;
+  const base = P.filter(p => matches(p, true, 1));
+  let html = `<div class="subs-fila" role="group" aria-label="${esc(t.pregunta)}">${chip('sub', '', t.todos, base.length, !st.sub)}` +
+    t.subs.map(s => chip('sub', s.clave, s.boton, base.filter(p => p.sub === s.clave).length, st.sub === s.clave)).join('') + '</div>';
+  const s = st.sub && t.subs.find(x => x.clave === st.sub);
+  if (s && s.variantes){
+    const base2 = base.filter(p => p.sub === s.clave);
+    html += `<div class="subs-fila subs-var" role="group" aria-label="${esc(s.boton)}: ${esc(s.pregunta)}"><span class="subs-l" aria-hidden="true">${esc(s.boton)}:</span>` +
+      chip('vari', '', t.genero === 'f' ? 'Todas' : 'Todos', base2.length, !st.vari) +
+      s.variantes.map(v => chip('vari', v.clave, v.boton, base2.filter(p => p.vari === v.clave).length, st.vari === v.clave)).join('') + '</div>';
+  }
+  box.innerHTML = html;
+}
 function renderGrid(highlight){
   const list = P.filter(p => matches(p, true)).sort(SORTS[st.sort]);
   const grid = $('#grid');
@@ -338,24 +365,24 @@ function renderGrid(highlight){
   </button>`).join('');
   if (highlight) setTimeout(() => document.querySelectorAll('.card.is-new').forEach(c => c.classList.remove('is-new')), 2600);
 }
-function renderStock(highlight){ renderFacts(); renderMats(); renderCats(); renderGrid(highlight); }
+function renderStock(highlight){ renderFacts(); renderMats(); renderCats(); renderSubs(); renderGrid(highlight); }
 function clearSearch(){ $('#q').value = ''; st.q = ''; $('#qClear').hidden = true; }
 function clearFilters(){
-  Object.assign(st, {mat:null, cat:null, sort:'recent'});
+  Object.assign(st, {mat:null, cat:null, sub:null, vari:null, sort:'recent'});
   clearSearch(); $('#sort').value = 'recent';
   renderStock();
 }
 
 /* ── Por completar ── */
 const ART_ES = {material:'el', 'tipo de pieza':'el', precio:'el'};
-const missList = x => [!x.m && 'material', !x.cat && 'tipo de pieza', !x.p && 'precio'].filter(Boolean);
+const missList = x => [!x.m && 'material', !catCompleta(x) && 'tipo de pieza', !x.p && 'precio'].filter(Boolean);
 function missText(x, full){
   const miss = missList(x);
   if (miss.length === 3) return full ? 'Faltan material, tipo de pieza y precio' : 'Sin datos todavía';
   if (miss.length === 1) return `Falta ${ART_ES[miss[0]]} ${miss[0]}`;
   return miss.length ? `Faltan ${miss[0]} y ${miss[1]}` : '';
 }
-const knownText = x => [x.m && MAT[x.m].full, x.cat && CAT[x.cat].one, x.p && money(x.p)].filter(Boolean).join(', ');
+const knownText = x => [x.m && MAT[x.m].full, x.cat && CATS.nombre(catDe(x)), x.p && money(x.p)].filter(Boolean).join(', ');
 const ARROW_R = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
 const CHECK_BIG = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="32" cy="32" r="28"/><path d="M20 33l8 8 16-17"/></svg>';
 /* Cada foto es una tarjeta blanca: la foto, su número, lo que ya tiene, lo que le falta y "Completar" */
@@ -365,7 +392,7 @@ function tileHTML(x){
     <span class="pwell"><img src="${x.img}" alt="" width="200" height="200" loading="lazy" decoding="async"></span>
     <span class="pt-body">
       <span class="pt-name">Foto ${x.num}</span>
-      ${known ? `<span class="pt-known">${known}</span>` : ''}
+      ${known ? `<span class="pt-known">${esc(known)}</span>` : ''}
       <span class="pt-miss">${missText(x)}</span>
       <span class="pt-go">Completar ${ARROW_R}</span>
     </span>
@@ -614,12 +641,45 @@ const reserveHTML = p => `<div class="pd-form">
   <button type="button" class="btn btn-primary btn-block" data-act="reserve-ok">Confirmar reserva</button>
   <button type="button" class="btn btn-text" data-act="back">Volver</button>
 </div>`;
+/* Editar la categoría: tipo, su pregunta y (si hace falta) la de abajo, como listas */
+const pdOpts = (lista, cur) => `<option value="">Elegí…</option>` + lista.map(o => `<option value="${o.clave}"${o.clave === cur ? ' selected' : ''}>${esc(o.boton)}</option>`).join('');
+function pdCatsHTML(c){
+  const r = CATS.leer(c);
+  const tipos = Object.values(TIPOS).map(t => ({clave:t.clave, boton:t.una}));
+  return `<div class="field"><label for="pdCat">Tipo de pieza</label><select class="input" id="pdCat" name="pdCat">${pdOpts(tipos, r.tipo && r.tipo.clave)}</select></div>
+    <div class="field" id="pdSubF"${r.tipo ? '' : ' hidden'}><label for="pdSub">${r.tipo ? esc(r.tipo.pregunta) : ''}</label><select class="input" id="pdSub" name="pdSub">${r.tipo ? pdOpts(r.tipo.subs, r.sub && r.sub.clave) : ''}</select></div>
+    <div class="field" id="pdVarF"${r.sub && r.sub.variantes ? '' : ' hidden'}><label for="pdVar">${r.sub && r.sub.variantes ? esc(r.sub.pregunta) : ''}</label><select class="input" id="pdVar" name="pdVar">${r.sub && r.sub.variantes ? pdOpts(r.sub.variantes, r.variante && r.variante.clave) : ''}</select></div>`;
+}
+const pdCatValues = () => ({categoria:$('#pdCat').value || null, subcategoria:$('#pdSub').value || null, variante:$('#pdVar').value || null});
+/* Si el nombre era el automático, sigue a la categoría mientras no se lo cambie a mano */
+let pdAuto = null;
+function pdCambio(t, p){
+  ['pdCat', 'pdSub', 'pdVar'].forEach(id => { const el = $('#' + id); if (el.getAttribute('aria-describedby') === 'pdCatErr') clearErr(el); });
+  const c = pdCatValues();
+  if (t.id === 'pdCat'){
+    const tipo = TIPOS[c.categoria];
+    $('#pdSubF').hidden = !tipo;
+    $('label[for="pdSub"]').textContent = tipo ? tipo.pregunta : '';
+    $('#pdSub').innerHTML = tipo ? pdOpts(tipo.subs, null) : '';
+    c.subcategoria = null;
+  }
+  if (t.id !== 'pdVar'){
+    const s = CATS.leer(c).sub;
+    $('#pdVarF').hidden = !(s && s.variantes);
+    $('label[for="pdVar"]').textContent = s && s.variantes ? s.pregunta : '';
+    $('#pdVar').innerHTML = s && s.variantes ? pdOpts(s.variantes, null) : '';
+    c.variante = null;
+  }
+  const nombre = $('#pdName');
+  if (pdAuto !== null && nombre.value.trim() === pdAuto && CATS.leer(c).completa){
+    nombre.value = pdAuto = autoName({m:p.m, cat:c.categoria, sub:c.subcategoria, vari:c.variante});
+  }
+}
 const editHTML = p => `<div class="pd-form">
   <div class="field"><label for="pdName">Nombre</label><input class="input" id="pdName" name="pdName" autocomplete="off" enterkeyhint="done" value="${esc(p.n)}"></div>
-  <div class="ed-two">
-    <div class="field"><label for="pdPrice">Precio</label><div class="money"><span aria-hidden="true">$</span><input class="input" id="pdPrice" name="pdPrice" inputmode="numeric" autocomplete="off" enterkeyhint="done" data-money value="${p.p.toLocaleString('es-AR')}"></div></div>
-    <div class="field"><label for="pdCat">Categoría</label><select class="input" id="pdCat" name="pdCat">${Object.entries(CAT).map(([k, v]) => `<option value="${k}"${k === p.cat ? ' selected' : ''}>${v.one}</option>`).join('')}</select></div>
-  </div>
+  <div class="field"><label for="pdPrice">Precio</label><div class="money"><span aria-hidden="true">$</span><input class="input" id="pdPrice" name="pdPrice" inputmode="numeric" autocomplete="off" enterkeyhint="done" data-money value="${p.p.toLocaleString('es-AR')}"></div></div>
+  <div class="pd-cats" id="pdCats">${pdCatsHTML(catDe(p))}</div>
+  <p class="err" id="pdCatErr" hidden>Terminá de elegir el tipo de pieza para guardar.</p>
   <div class="field"><label for="pdDet">Detalle <span class="opt-l">(opcional)</span></label><input class="input" id="pdDet" name="pdDet" autocomplete="off" enterkeyhint="done" placeholder="Ej.: talle 16, 45 cm, 3,1 g…" value="${esc(p.det || '')}"></div>
   <p class="ed-code">El código ${p.c} y el material no cambian.</p>
   <p class="err" id="pdErr" hidden>Poné un precio mayor a cero para guardar.</p>
@@ -629,7 +689,7 @@ const editHTML = p => `<div class="pd-form">
 function specsOf(p){
   const rows = [];
   if (p.s === 'reservado' && p.res) rows.push(['Reservada para', `${p.res.who}, ${p.res.sena ? `seña de ${money(p.res.sena)}` : 'sin seña'}, ${since(p.res.d)}`]);
-  rows.push(['Material', p.ml], ['Categoría', CAT[p.cat].one]);
+  rows.push(['Material', p.ml], ['Categoría', CATS.texto(catDe(p))]);
   if (p.det) rows.push(['Detalle', p.det]);
   rows.push(['Ingreso', p.d === 0 ? 'Hoy' : longDate(daysAgo(p.d))]);
   return rows;
@@ -730,11 +790,26 @@ function uploadHTML(){
       <span class="up-opt-l">¿Son todas del mismo material o del mismo tipo de pieza? Podés elegirlo ahora; si no, lo elegís después en cada foto.</span>
       <select class="input input-sm" id="upMat" name="upMat" aria-label="Material para todas">${optList(Object.entries(MAT).map(([k, v]) => [k, v.full]), 'Material sin definir')}</select>
       <select class="input input-sm" id="upCat" name="upCat" aria-label="Tipo de pieza para todas">${optList(Object.entries(CAT).map(([k, v]) => [k, v.one]), 'Tipo de pieza sin definir')}</select>
+      <select class="input input-sm" id="upSub" name="upSub" hidden></select>
+      <select class="input input-sm" id="upVar" name="upVar" hidden></select>
     </div>
     <p class="ld-errmsg" id="upErr" hidden>Las fotos marcadas con ! no se pudieron abrir y no se van a agregar. Si son del iPhone (HEIC), mandalas como JPG.</p>
     <div class="up-grid" id="upGrid"></div>
     <div class="ld-foot" id="upFoot"></div>
   </div>`;
+}
+/* "Para todas": al elegir el tipo aparece su pregunta y, si hace falta, la del nivel de abajo.
+   La primera opción de cada lista es la pregunta misma (queda sin definir). */
+function fillSelect(sel, opciones, pregunta){
+  sel.hidden = !opciones;
+  sel.innerHTML = opciones ? optList(opciones.map(o => [o.clave, esc(o.boton)]), esc(pregunta)) : '';
+  if (opciones) sel.setAttribute('aria-label', `${pregunta.replace(/[¿?]/g, '')}, para todas`);
+}
+function upCats(cambio){
+  const t = TIPOS[$('#upCat').value];
+  if (cambio === 'upCat') fillSelect($('#upSub'), t && t.subs, t && t.pregunta);
+  const s = t && t.subs.find(o => o.clave === $('#upSub').value);
+  fillSelect($('#upVar'), s && s.variantes, s && s.pregunta);
 }
 const utHTML = r => `<div class="ut" data-id="${r.id}"><div class="ut-img${r.status === 'processing' ? ' busy' : ''}">${r.img ? `<img src="${r.img}" alt="" decoding="async">` : r.status === 'error' ? '<span class="ld-err-ico" aria-hidden="true">!</span>' : ''}</div><button type="button" class="ut-x" data-act="up-remove" aria-label="Quitar la foto ${r.id}">${xIcon}</button></div>`;
 function openUpload(){
@@ -807,6 +882,8 @@ async function upCommit(){
   const q = new URLSearchParams();
   if ($('#upMat').value) q.set('material', $('#upMat').value);
   if ($('#upCat').value) q.set('categoria', $('#upCat').value);
+  if ($('#upSub').value) q.set('subcategoria', $('#upSub').value);
+  if ($('#upVar').value) q.set('variante', $('#upVar').value);
   const qs = q.toString() ? '?' + q : '';
   up.sending = true; up.sent = 0; up.total = ready.length; upFoot();
   const added = [];
@@ -847,6 +924,15 @@ function chipsHTML(name, entries, cur){
 const catIcon = k => `<span class="ico-o" aria-hidden="true">${icono(k)}</span>`;
 const matLabel = (k, v) => `<i class="sw sw-${k}" aria-hidden="true"></i>${v.name}`;
 const PASOS = {m:['pasoMat', 'el material'], cat:['pasoCat', 'el tipo de pieza'], p:['pasoPre', 'el precio']};
+const pasoHecho = (v, k) => k === 'cat' ? catCompleta(v) : !!v[k];
+/* Dentro del paso 2: al elegir el tipo aparece la pregunta de la subcategoría y,
+   si la elegida tiene otro nivel, una pregunta más */
+const subEdHTML = (t, cur) => `<fieldset class="subpaso" id="pasoSub"><legend>${esc(t.pregunta)}</legend><div class="opts opts-sub">${chipsHTML('edSub', t.subs.map(o => [o.clave, esc(o.boton)]), cur)}</div></fieldset>`;
+const varEdHTML = (s, cur) => s && s.variantes ? `<fieldset class="subpaso" id="pasoVar"><legend>${esc(s.pregunta)}</legend><div class="opts opts-sub">${chipsHTML('edVar', s.variantes.map(o => [o.clave, esc(o.boton)]), cur)}</div></fieldset>` : '';
+function subsEdHTML(v){
+  const r = CATS.leer(catDe(v));
+  return r.tipo ? subEdHTML(r.tipo, r.sub && r.sub.clave) + varEdHTML(r.sub, r.variante && r.variante.clave) : '';
+}
 const noticeHTML = n => n ? `<p class="ed-notice${n.ok ? ' ok' : ''}"><span>${n.html}</span></p>` : '';
 const pasoL = (n, label) => `<span class="paso-l"><span class="paso-n" aria-hidden="true">${n}</span>${label}<span class="paso-falta" aria-hidden="true">Falta</span></span>`;
 function editorHTML(x, notice){
@@ -857,7 +943,7 @@ function editorHTML(x, notice){
       ${noticeHTML(notice)}
       <div class="ed-head"><h2 class="np-title">Foto ${x.num}</h2><p class="ld-lead">${total > 1 ? `${pos} de ${total} por completar` : 'Es la última por completar'}</p></div>
       <fieldset class="paso" id="pasoMat"><legend>${pasoL(1, 'Material')}</legend><div class="opts opts-big">${chipsHTML('edMat', Object.entries(MAT).map(([k, v]) => [k, matLabel(k, v)]), x.m)}</div></fieldset>
-      <fieldset class="paso" id="pasoCat"><legend>${pasoL(2, 'Tipo de pieza')}</legend><div class="opts opts-cat">${chipsHTML('edCat', Object.entries(CAT).map(([k, v]) => [k, catIcon(k) + v.one]), x.cat)}</div></fieldset>
+      <fieldset class="paso" id="pasoCat"><legend>${pasoL(2, 'Tipo de pieza')}</legend><div class="opts opts-cat">${chipsHTML('edCat', Object.entries(CAT).map(([k, v]) => [k, catIcon(k) + v.one]), x.cat)}</div><div class="ed-subs" id="edSubs">${subsEdHTML(x)}</div></fieldset>
       <div class="paso" id="pasoPre"><label for="edPrice">${pasoL(3, 'Precio')}</label><div class="money money-big"><span aria-hidden="true">$</span><input class="input" id="edPrice" name="edPrice" inputmode="numeric" autocomplete="off" enterkeyhint="done" data-money value="${x.p ? x.p.toLocaleString('es-AR') : ''}"></div></div>
       <details class="ed-mas"${x.det || x.n ? ' open' : ''}><summary>Agregar detalle o nombre <span class="opt-l">(si querés)</span></summary>
         <div class="ed-mas-in">
@@ -885,7 +971,10 @@ function openEditor(id, notice){
   if (notice) say(plain(notice.html));
   /* En escritorio el foco va al primer dato que falta; en celular no, para no abrir el teclado */
   if (finePointer){
-    const el = !x.m ? body.querySelector('input[name="edMat"]') : !x.cat ? body.querySelector('input[name="edCat"]') : $('#edPrice');
+    const el = !x.m ? body.querySelector('input[name="edMat"]')
+      : !CAT[x.cat] ? body.querySelector('input[name="edCat"]')
+      : !catCompleta(x) ? body.querySelector(x.sub ? '#pasoVar input' : '#pasoSub input')
+      : $('#edPrice');
     el?.focus({preventScroll:true});
   }
 }
@@ -893,6 +982,8 @@ function edValues(){
   return {
     m: body.querySelector('input[name="edMat"]:checked')?.value || null,
     cat: body.querySelector('input[name="edCat"]:checked')?.value || null,
+    sub: body.querySelector('input[name="edSub"]:checked')?.value || null,
+    vari: body.querySelector('input[name="edVar"]:checked')?.value || null,
     p: Number(digitsOf($('#edPrice')?.value || '')) || 0,
     n: ($('#edName')?.value || '').trim(),
     det: ($('#edDet')?.value || '').trim()
@@ -900,19 +991,24 @@ function edValues(){
 }
 function edRefresh(){
   const v = edValues(), el = $('#edCode'); if (!el) return;
-  const code = v.m ? nextCode(v.m) : '';
-  el.innerHTML = v.m && v.cat && v.p
+  const code = v.m ? nextCode(v.m) : '', cat = catCompleta(v);
+  el.innerHTML = v.m && cat && v.p
     ? `Listo para guardar: pasa al stock con el código <b>${code}</b>.`
     : `Cuando tenga los tres datos, pasa al stock${code ? ` con el código <b>${code}</b>` : ' con su código'}.`;
-  $('#edName').placeholder = v.m && v.cat ? autoName(v) : 'Si lo dejás vacío se completa solo';
+  $('#edName').placeholder = v.m && cat ? autoName(v) : 'Si lo dejás vacío se completa solo';
   /* cada paso hecho muestra su tilde; si estaba marcado como faltante, se desmarca */
   let falta = false;
   Object.entries(PASOS).forEach(([k, [id]]) => {
-    const s = $('#' + id), ok = !!v[k];
+    const s = $('#' + id), ok = pasoHecho(v, k);
     s.classList.toggle('hecho', ok);
     if (ok) s.classList.remove('falta');
     falta = falta || s.classList.contains('falta');
   });
+  body.querySelectorAll('.subpaso').forEach(f => {
+    if (f.querySelector('input:checked')) f.classList.remove('falta');
+    falta = falta || f.classList.contains('falta');
+  });
+  if (v.cat) $('#pasoCat').classList.remove('falta');
   const fl = $('#edFalta');
   if (fl && !falta) fl.textContent = '';
 }
@@ -921,9 +1017,9 @@ async function edCommit(){
   const x = PENDING.find(p => p.id === edId);
   if (!x || !body.querySelector('.ed')) return null;
   const v = edValues(), idx = PENDING.indexOf(x);
-  const changed = JSON.stringify([x.m, x.cat, x.p, x.n, x.det]) !== JSON.stringify([v.m, v.cat, v.p, v.n, v.det]);
-  if (!changed && !(v.m && v.cat && v.p)) return {x, idx, changed, piece:null};
-  const r = await api(`/pendientes/${x.id}`, {method:'PATCH', body:{material:v.m, categoria:v.cat, precio:v.p, nombre:v.n, detalle:v.det}});
+  const changed = JSON.stringify([x.m, x.cat, x.sub, x.vari, x.p, x.n, x.det]) !== JSON.stringify([v.m, v.cat, v.sub, v.vari, v.p, v.n, v.det]);
+  if (!changed && !(v.m && catCompleta(v) && v.p)) return {x, idx, changed, piece:null};
+  const r = await api(`/pendientes/${x.id}`, {method:'PATCH', body:{material:v.m, categoria:v.cat, subcategoria:v.sub, variante:v.vari, precio:v.p, nombre:v.n, detalle:v.det}});
   if (r.pieza){
     const piece = dePieza(r.pieza);
     const i = PENDING.indexOf(x); if (i > -1) PENDING.splice(i, 1);
@@ -960,13 +1056,16 @@ async function edGo(dir, announce){
 /* "Guardar" pide los tres datos: si falta alguno, se marca el paso y se explica qué hacer */
 function edSave(){
   if (!$('#edFalta')) $('#edFoot').innerHTML = edFootHTML();
-  const v = edValues(), miss = Object.keys(PASOS).filter(k => !v[k]);
+  const v = edValues(), miss = Object.keys(PASOS).filter(k => !pasoHecho(v, k));
   if (!miss.length){ edGo(1, true); return; }
-  Object.entries(PASOS).forEach(([k, [id]]) => $('#' + id).classList.toggle('falta', miss.includes(k)));
+  /* Si el tipo está elegido pero falta una de sus preguntas, se marca esa fila */
+  const fila = v.cat && miss.includes('cat') ? (v.sub ? $('#pasoVar') : $('#pasoSub')) : null;
+  Object.entries(PASOS).forEach(([k, [id]]) => $('#' + id).classList.toggle('falta', miss.includes(k) && !(k === 'cat' && fila)));
+  if (fila) fila.classList.add('falta');
   const words = miss.map(k => PASOS[k][1]);
   const what = words.length > 1 ? words.slice(0, -1).join(', ') + ' y ' + words[words.length - 1] : words[0];
   $('#edFalta').innerHTML = `${words.length > 1 ? 'Faltan' : 'Falta'} ${what}. Si no ${words.length > 1 ? 'los' : 'lo'} sabés todavía, podés <b>dejarla para después</b>.`;
-  const first = $('#' + PASOS[miss[0]][0]);
+  const first = miss[0] === 'cat' && fila ? fila : $('#' + PASOS[miss[0]][0]);
   first.scrollIntoView({block:'center', behavior:smooth()});
   (miss[0] === 'p' ? $('#edPrice') : first.querySelector('input:checked') || first.querySelector('input')).focus({preventScroll:true});
 }
@@ -975,7 +1074,7 @@ function edLater(){
   if (PENDING.length > 1){ edGo(1, false); return; }
   const x = PENDING.find(p => p.id === edId), v = edValues();
   closeSheet();
-  if (x && !(v.m && v.cat && v.p)) toast(`La foto ${x.num} quedó para después`);
+  if (x && !(v.m && catCompleta(v) && v.p)) toast(`La foto ${x.num} quedó para después`);
 }
 /* Borrar pide confirmación ahí mismo, con "No" como opción segura */
 function edAskDelete(){
@@ -1059,9 +1158,16 @@ async function unreserve(p, btn){
 async function editOk(p, btn){
   const price = Number(digitsOf($('#pdPrice').value)) || 0;
   if (!price){ showErr($('#pdPrice'), 'pdErr'); return; }
+  const c = pdCatValues();
+  if (!CATS.leer(c).completa){
+    /* se marca la primera lista que falta elegir */
+    const falta = !c.categoria ? $('#pdCat') : !c.subcategoria ? $('#pdSub') : $('#pdVar');
+    showErr(falta, 'pdCatErr');
+    return;
+  }
   const done = busy(btn, 'Guardando…');
   try {
-    const r = await api(`/piezas/${enc(p.c)}`, {method:'PATCH', body:{nombre:$('#pdName').value.trim(), precio:price, categoria:$('#pdCat').value, detalle:$('#pdDet').value.trim()}});
+    const r = await api(`/piezas/${enc(p.c)}`, {method:'PATCH', body:{nombre:$('#pdName').value.trim(), precio:price, ...c, detalle:$('#pdDet').value.trim()}});
     Object.assign(p, dePieza(r.pieza));
   } catch (err){ done(); if (!err.sesion) toast(err.message); return; }
   if (enFicha(p)) rerenderPiece(p);
@@ -1100,7 +1206,7 @@ body.addEventListener('click', e => {
     case 'reserve': actions.innerHTML = reserveHTML(p); focusIn('#rsWho'); return;
     case 'reserve-ok': reserveOk(p, b); return;
     case 'unreserve': unreserve(p, b); return;
-    case 'edit': actions.innerHTML = editHTML(p); focusIn('#pdPrice'); return;
+    case 'edit': actions.innerHTML = editHTML(p); pdAuto = p.n === autoName(p) ? p.n : null; focusIn('#pdPrice'); return;
     case 'edit-ok': editOk(p, b); return;
     case 'confirm': sell(p, body.querySelector('input[name="pay"]:checked')?.value || PAYS[0], b); return;
   }
@@ -1111,9 +1217,22 @@ body.addEventListener('pointermove', e => {
 });
 body.addEventListener('change', e => {
   const t = e.target;
-  if (t.name === 'edMat' || t.name === 'edCat') edRefresh();
+  /* Cambiar el tipo vuelve a armar sus preguntas; cambiar la subcategoría, solo la de abajo
+     (así el foco no se pierde y nunca queda elegida una opción de otro tipo) */
+  if (t.name === 'edCat') $('#edSubs').innerHTML = subsEdHTML({cat:t.value});
+  if (t.name === 'edSub'){
+    $('#pasoVar')?.remove();
+    const s = TIPOS[edValues().cat]?.subs.find(o => o.clave === t.value);
+    $('#pasoSub').insertAdjacentHTML('afterend', varEdHTML(s, null));
+  }
+  if (['edMat', 'edCat', 'edSub', 'edVar'].includes(t.name)) edRefresh();
+  else if (t.id === 'upCat' || t.id === 'upSub') upCats(t.id);
   else if (t.id === 'upFiles' || t.id === 'upCam'){ const files = [...t.files]; t.value = ''; upAdd(files); }
   else if (t.id === 'pdPhoto'){ const f = t.files[0]; t.value = ''; changePhoto(f); }
+  else if (t.id === 'pdCat' || t.id === 'pdSub' || t.id === 'pdVar'){
+    const p = P.find(x => x.c === body.querySelector('.pd')?.dataset.code);
+    if (p) pdCambio(t, p);
+  }
 });
 body.addEventListener('input', e => {
   const t = e.target;
@@ -1157,21 +1276,34 @@ document.addEventListener('keydown', e => {
 addEventListener('beforeunload', e => { if (up.rows.length){ e.preventDefault(); e.returnValue = ''; } });
 
 /* ── Filtros y búsqueda ── */
-$('#mats').addEventListener('click', e => { const b = e.target.closest('.mat'); if (!b) return; st.mat = b.dataset.m || null; renderMats(); renderGrid(); });
-$('#cats').addEventListener('click', e => { const b = e.target.closest('.cat'); if (!b) return; st.cat = b.dataset.c || null; renderCats(); renderMats(); renderGrid(); });
+$('#mats').addEventListener('click', e => { const b = e.target.closest('.mat'); if (!b) return; st.mat = b.dataset.m || null; renderMats(); renderSubs(); renderGrid(); });
+$('#cats').addEventListener('click', e => {
+  const b = e.target.closest('.cat'); if (!b) return;
+  st.cat = b.dataset.c || null; st.sub = st.vari = null;
+  renderCats(); renderSubs(); renderMats(); renderGrid();
+});
+/* Las filas se vuelven a dibujar con los números nuevos: el foco queda en la misma opción */
+$('#subs').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  const esSub = 'sub' in b.dataset, k = esSub ? b.dataset.sub : b.dataset.vari;
+  if (esSub){ st.sub = k || null; st.vari = null; } else st.vari = k || null;
+  const tenia = b === document.activeElement;
+  renderSubs(); renderMats(); renderGrid();
+  if (tenia) $('#subs').querySelector(`.chip[data-${esSub ? 'sub' : 'vari'}="${k}"]`)?.focus({preventScroll:true});
+});
 let qFrame = 0;
 $('#q').addEventListener('input', e => {
   st.q = e.target.value;
   $('#qClear').hidden = !st.q;
   cancelAnimationFrame(qFrame);
-  qFrame = requestAnimationFrame(() => { renderMats(); renderGrid(); });
+  qFrame = requestAnimationFrame(() => { renderMats(); renderSubs(); renderGrid(); });
 });
 $('#q').addEventListener('keydown', e => {
-  if (e.key === 'Escape' && e.target.value){ e.preventDefault(); e.stopPropagation(); clearSearch(); renderMats(); renderGrid(); }
+  if (e.key === 'Escape' && e.target.value){ e.preventDefault(); e.stopPropagation(); clearSearch(); renderMats(); renderSubs(); renderGrid(); }
   if (e.key === 'Enter' && coarse) e.target.blur();   /* en el celular, Enter cierra el teclado y deja ver los resultados */
 });
 $('#searchBox').addEventListener('click', e => { if (!e.target.closest('#qClear, #q')) $('#q').focus(); });
-$('#qClear').addEventListener('click', () => { clearSearch(); renderMats(); renderGrid(); $('#q').focus(); });
+$('#qClear').addEventListener('click', () => { clearSearch(); renderMats(); renderSubs(); renderGrid(); $('#q').focus(); });
 $('#sort').addEventListener('change', e => { st.sort = e.target.value; renderGrid(); });
 $('#grid').addEventListener('click', e => {
   if (e.target.closest('[data-clear]')){ clearFilters(); return; }

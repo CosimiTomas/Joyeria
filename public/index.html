@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Jost:wght@300..600&family=Kaushan+Script&display=swap">
 <link rel="stylesheet" href="/styles.css">
+<script src="/categorias.js" defer></script>
 <script src="/app.js" defer></script>
 </head>
 <body>
@@ -136,7 +137,10 @@
                     <option value="code">Código</option>
                   </select>
                 </label>
-                <div class="cats" id="cats" role="group" aria-label="Categoría"></div>
+                <div class="tipos">
+                  <div class="cats" id="cats" role="group" aria-label="Tipo de pieza"></div>
+                  <div class="subs" id="subs" hidden></div>
+                </div>
               </div>
               <div class="grid" id="grid"></div>
             </div>

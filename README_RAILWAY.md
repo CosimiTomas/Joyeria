@@ -35,7 +35,7 @@ DATOS_EJEMPLO=true
 - `MYSQL_URL` conecta con la base. Si tu servicio MySQL tiene otro nombre, cambiá `MySQL` por ese nombre.
 - `JWT_SECRET`: cualquier texto largo (por ejemplo 40 letras y números al azar). Si falta, las sesiones se cierran cada vez que Railway reinicia.
 - `LOGIN_PASSWORD`: es la clave de ingreso. **Sin esta variable no se crea la cuenta** y nadie puede entrar (a propósito, para que no quede una clave de prueba).
-- `DATOS_EJEMPLO=true` carga 27 piezas y ventas de prueba si la base está vacía, para mostrarlo. Para el uso real, **no la pongas**. Si ya la usaste para una demo y querés empezar limpio: borrá la variable, eliminá el servicio MySQL, creá uno nuevo (paso 3) y volvé a desplegar.
+- `DATOS_EJEMPLO=true` carga 34 piezas y ventas de prueba si la base está vacía, para mostrarlo. Para el uso real, **no la pongas**. Si ya la usaste para una demo y querés empezar limpio: borrá la variable, eliminá el servicio MySQL, creá uno nuevo (paso 3) y volvé a desplegar.
 
 Guardá → Railway vuelve a desplegar solo.
 
@@ -46,6 +46,12 @@ Servicio → **Settings** → **Networking** → **Generate Domain**. Ese link e
 ## 6. (Opcional) Chequeo de salud
 
 Settings → **Healthcheck Path**: `/api/health`.
+
+## Actualizar el sistema (cuando hay una versión nueva)
+
+1. En el repo de GitHub: **Add file → Upload files** y arrastrá los archivos nuevos (los que tienen el mismo nombre se reemplazan). La carpeta `public` también.
+2. **Commit changes**. Railway vuelve a desplegar solo.
+3. La base se pone al día sola al arrancar: no se pierde nada. Si solo tenía los datos de ejemplo, se cambian por los nuevos.
 
 ## Cambiar la clave
 

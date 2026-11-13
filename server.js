@@ -18,9 +18,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const {
   pool, PROD, MATERIALES, CATEGORIAS, PAGOS, nombreAuto,
-  asegurarBase, crearEsquema, sincronizarContadores, siguiente, siguienteCodigo, asegurarCuenta, purgar,
+  asegurarBase, crearEsquema, migrar, sincronizarContadores, siguiente, siguienteCodigo, asegurarCuenta, purgar,
 } = require('./db');
-const { cargarEjemplo } = require('./ejemplo');
+const { prepararEjemplo } = require('./ejemplo');
 
 const PORT = process.env.PORT || 3000;
 let SECRET = process.env.JWT_SECRET;
@@ -39,13 +39,12 @@ async function prepararBase() {
   try {
     console.log('› Verificando la base de datos…');
     await crearEsquema(conn);
+    await migrar(conn);
     VERSION_CLAVE = await asegurarCuenta(conn);
     if (process.env.DATOS_EJEMPLO === 'true') {
-      const [[{ n }]] = await conn.query('SELECT COUNT(*) AS n FROM piezas');
-      if (Number(n) === 0) {
-        console.log('› Cargando los datos de ejemplo (DATOS_EJEMPLO=true)…');
-        await cargarEjemplo(conn);
-      }
+      const hecho = await prepararEjemplo(conn);
+      if (hecho === 'cargados') console.log('› Se cargaron los datos de ejemplo (DATOS_EJEMPLO=true).');
+      if (hecho === 'recargados') console.log('› Los datos de ejemplo se cambiaron por los de la versión nueva (DATOS_EJEMPLO=true).');
     }
     await sincronizarContadores(conn);
     await purgar(conn);
@@ -94,33 +93,47 @@ function entero(v, { min = 0, max = 999999999 } = {}) {
 const codigoValido = c => /^[A-Z]{3}-\d{3,7}$/.test(c);
 const urlFoto = clave => (clave ? `/api/fotos/${clave}` : null);
 
+/* Tipo de pieza, subcategoría y variante (la lista está en public/categorias.js).
+   Cada nivel tiene que existir dentro del de arriba; con { completa: true } además
+   tienen que estar todos los niveles que corresponden. Devuelve { c, completa }. */
+function categoriaDe(fuente, { completa: exigir = false } = {}) {
+  const leer = k => (fuente && fuente[k] ? String(fuente[k]) : null);
+  const c = { categoria: leer('categoria'), subcategoria: leer('subcategoria'), variante: leer('variante') };
+  const r = CATEGORIAS.leer(c);
+  if (!r.valida) throw new Aviso(400, 'Tipo de pieza inválido.');
+  if (exigir && !c.categoria) throw new Aviso(400, 'Elegí el tipo de pieza.');
+  if (exigir && !r.completa) throw new Aviso(400, 'Elegí el tipo de pieza completo.');
+  return { c, completa: r.completa };
+}
+const categoriasJSON = r => ({ categoria: r.categoria, subcategoria: r.subcategoria || null, variante: r.variante || null });
+
 const SQL_PIEZA = `
-  SELECT p.id, p.codigo, p.nombre, p.material, p.categoria, p.precio, p.detalle, p.estado,
+  SELECT p.id, p.codigo, p.nombre, p.material, p.categoria, p.subcategoria, p.variante, p.precio, p.detalle, p.estado,
          DATEDIFF(CURDATE(), p.ingreso) AS dias,
          p.reserva_cliente, p.reserva_sena, DATEDIFF(CURDATE(), p.reserva_fecha) AS reserva_dias,
          f.clave AS foto
     FROM piezas p LEFT JOIN fotos f ON f.id = p.foto_id`;
 const piezaJSON = r => ({
-  id: r.id, codigo: r.codigo, nombre: r.nombre, material: r.material, categoria: r.categoria,
+  id: r.id, codigo: r.codigo, nombre: r.nombre, material: r.material, ...categoriasJSON(r),
   precio: r.precio, detalle: r.detalle, estado: r.estado, dias: Number(r.dias) || 0,
   reserva: r.reserva_cliente != null ? { cliente: r.reserva_cliente, sena: r.reserva_sena || 0, dias: Number(r.reserva_dias) || 0 } : null,
   foto: urlFoto(r.foto),
 });
 
 const SQL_VENTA = `
-  SELECT v.id, v.codigo, v.nombre, v.material, v.categoria, v.precio, v.medio_pago,
+  SELECT v.id, v.codigo, v.nombre, v.material, v.categoria, v.subcategoria, v.variante, v.precio, v.medio_pago,
          DATE_FORMAT(v.fecha, '%H:%i') AS hora, f.clave AS foto
     FROM ventas v JOIN piezas p ON p.id = v.pieza_id LEFT JOIN fotos f ON f.id = p.foto_id`;
 const ventaJSON = r => ({
-  id: r.id, codigo: r.codigo, nombre: r.nombre, material: r.material, categoria: r.categoria,
+  id: r.id, codigo: r.codigo, nombre: r.nombre, material: r.material, ...categoriasJSON(r),
   precio: r.precio, medio: r.medio_pago, hora: r.hora, foto: urlFoto(r.foto),
 });
 
 const SQL_PENDIENTE = `
-  SELECT q.id, q.numero, q.material, q.categoria, q.precio, q.nombre, q.detalle, f.clave AS foto
+  SELECT q.id, q.numero, q.material, q.categoria, q.subcategoria, q.variante, q.precio, q.nombre, q.detalle, f.clave AS foto
     FROM pendientes q JOIN fotos f ON f.id = q.foto_id`;
 const pendienteJSON = r => ({
-  id: r.id, numero: r.numero, material: r.material, categoria: r.categoria,
+  id: r.id, numero: r.numero, material: r.material, ...categoriasJSON(r),
   precio: r.precio, nombre: r.nombre, detalle: r.detalle, foto: urlFoto(r.foto),
 });
 
@@ -288,9 +301,9 @@ app.post('/api/piezas/:codigo/vender', requireAuth, ruta(async (req, res) => {
     const p = await piezaEnLocal(conn, req.params.codigo);
     const sena = p.estado === 'reservado' ? Math.min(p.reserva_sena || 0, p.precio) : 0;
     const [r] = await conn.query(
-      `INSERT INTO ventas (pieza_id, codigo, nombre, material, categoria, precio, sena, medio_pago, fecha)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [p.id, p.codigo, p.nombre, p.material, p.categoria, p.precio, sena, medio]);
+      `INSERT INTO ventas (pieza_id, codigo, nombre, material, categoria, subcategoria, variante, precio, sena, medio_pago, fecha)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [p.id, p.codigo, p.nombre, p.material, p.categoria, p.subcategoria, p.variante, p.precio, sena, medio]);
     await conn.query("UPDATE piezas SET estado = 'vendido' WHERE id = ?", [p.id]);
     return r.insertId;
   });
@@ -344,15 +357,14 @@ app.delete('/api/piezas/:codigo/reserva', requireAuth, ruta(async (req, res) => 
 app.patch('/api/piezas/:codigo', requireAuth, ruta(async (req, res) => {
   const precio = entero(req.body?.precio, { min: 1 });
   if (!precio) throw new Aviso(400, 'Poné un precio mayor a cero para guardar.');
-  const categoria = String(req.body?.categoria ?? '');
-  if (!CATEGORIAS[categoria]) throw new Aviso(400, 'Elegí el tipo de pieza.');
+  const { c } = categoriaDe(req.body, { completa: true });
   const detalle = texto(req.body?.detalle, 200);
   await enTransaccion(async conn => {
     const p = await piezaEnLocal(conn, req.params.codigo);
     if (p.reserva_sena && p.reserva_sena > precio) throw new Aviso(400, 'El precio no puede quedar por debajo de la seña.');
-    const nombre = texto(req.body?.nombre, 120) || nombreAuto(p.material, categoria);
-    await conn.query('UPDATE piezas SET nombre = ?, precio = ?, categoria = ?, detalle = ? WHERE id = ?',
-      [nombre, precio, categoria, detalle, p.id]);
+    const nombre = texto(req.body?.nombre, 120) || nombreAuto(p.material, c);
+    await conn.query('UPDATE piezas SET nombre = ?, precio = ?, categoria = ?, subcategoria = ?, variante = ?, detalle = ? WHERE id = ?',
+      [nombre, precio, c.categoria, c.subcategoria, c.variante, detalle, p.id]);
   });
   res.json({ pieza: await leerPieza(pool, req.params.codigo) });
 }));
@@ -372,28 +384,28 @@ app.put('/api/piezas/:codigo/foto', requireAuth, recibirImagen, ruta(async (req,
  * ---------------------------------------------------------- */
 app.post('/api/pendientes', requireAuth, recibirImagen, ruta(async (req, res) => {
   const material = req.query.material ? String(req.query.material) : null;
-  const categoria = req.query.categoria ? String(req.query.categoria) : null;
   if (material && !MATERIALES[material]) throw new Aviso(400, 'Material inválido.');
-  if (categoria && !CATEGORIAS[categoria]) throw new Aviso(400, 'Tipo de pieza inválido.');
+  const { c } = categoriaDe(req.query);
   const id = await enTransaccion(async conn => {
     const fotoId = await guardarFoto(conn, req.body);
     const numero = await siguiente(conn, 'foto');
-    const [r] = await conn.query('INSERT INTO pendientes (numero, foto_id, material, categoria) VALUES (?, ?, ?, ?)',
-      [numero, fotoId, material, categoria]);
+    const [r] = await conn.query(
+      'INSERT INTO pendientes (numero, foto_id, material, categoria, subcategoria, variante) VALUES (?, ?, ?, ?, ?, ?)',
+      [numero, fotoId, material, c.categoria, c.subcategoria, c.variante]);
     return r.insertId;
   });
   res.status(201).json({ pendiente: await leerPendiente(pool, id) });
 }));
 
-/* Guarda lo que se completó; si ya tiene material, tipo de pieza y precio, pasa al stock con su código */
+/* Guarda lo que se completó; si ya tiene material, tipo de pieza completo y precio,
+   pasa al stock con su código */
 app.patch('/api/pendientes/:id', requireAuth, ruta(async (req, res) => {
   const id = entero(req.params.id, { min: 1 });
   if (!id) throw new Aviso(404, 'No se encontró la foto.');
   const b = req.body || {};
   const material = b.material ? String(b.material) : null;
-  const categoria = b.categoria ? String(b.categoria) : null;
   if (material && !MATERIALES[material]) throw new Aviso(400, 'Material inválido.');
-  if (categoria && !CATEGORIAS[categoria]) throw new Aviso(400, 'Tipo de pieza inválido.');
+  const { c, completa } = categoriaDe(b);
   const precio = entero(b.precio ?? 0);
   if (precio === null) throw new Aviso(400, 'El precio tiene que ser un número.');
   const nombre = texto(b.nombre, 120), detalle = texto(b.detalle, 200);
@@ -401,17 +413,18 @@ app.patch('/api/pendientes/:id', requireAuth, ruta(async (req, res) => {
   const r = await enTransaccion(async conn => {
     const [[q]] = await conn.query('SELECT * FROM pendientes WHERE id = ? AND borrada_en IS NULL FOR UPDATE', [id]);
     if (!q) throw new Aviso(404, 'No se encontró la foto. Puede que ya la hayan completado o borrado.');
-    if (material && categoria && precio > 0) {
+    if (material && completa && precio > 0) {
       const codigo = await siguienteCodigo(conn, material);
       await conn.query(
-        `INSERT INTO piezas (codigo, nombre, material, categoria, precio, detalle, estado, ingreso, foto_id)
-         VALUES (?, ?, ?, ?, ?, ?, 'disponible', CURDATE(), ?)`,
-        [codigo, nombre || nombreAuto(material, categoria), material, categoria, precio, detalle, q.foto_id]);
+        `INSERT INTO piezas (codigo, nombre, material, categoria, subcategoria, variante, precio, detalle, estado, ingreso, foto_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'disponible', CURDATE(), ?)`,
+        [codigo, nombre || nombreAuto(material, c), material, c.categoria, c.subcategoria, c.variante, precio, detalle, q.foto_id]);
       await conn.query('DELETE FROM pendientes WHERE id = ?', [id]);
       return { codigo };
     }
-    await conn.query('UPDATE pendientes SET material = ?, categoria = ?, precio = ?, nombre = ?, detalle = ? WHERE id = ?',
-      [material, categoria, precio, nombre, detalle, id]);
+    await conn.query(
+      'UPDATE pendientes SET material = ?, categoria = ?, subcategoria = ?, variante = ?, precio = ?, nombre = ?, detalle = ? WHERE id = ?',
+      [material, c.categoria, c.subcategoria, c.variante, precio, nombre, detalle, id]);
     return {};
   });
   if (r.codigo) return res.json({ pieza: await leerPieza(pool, r.codigo) });

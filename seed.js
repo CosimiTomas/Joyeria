@@ -6,7 +6,7 @@
  * (sin --si no hace nada, para que nadie lo corra sin querer sobre los datos reales)
  */
 require('dotenv').config();
-const { pool, asegurarBase, crearEsquema, sincronizarContadores } = require('./db');
+const { pool, asegurarBase, crearEsquema, migrar, sincronizarContadores } = require('./db');
 const { cargarEjemplo } = require('./ejemplo');
 
 (async () => {
@@ -19,6 +19,7 @@ const { cargarEjemplo } = require('./ejemplo');
   const conn = await pool.getConnection();
   try {
     await crearEsquema(conn);
+    await migrar(conn);
     await conn.query('SET FOREIGN_KEY_CHECKS = 0');
     for (const t of ['ventas', 'pendientes', 'piezas', 'fotos']) await conn.query(`TRUNCATE TABLE ${t}`);
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');

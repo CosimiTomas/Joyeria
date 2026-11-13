@@ -13,19 +13,20 @@ const PROD = process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVI
 /* Horario de Argentina para "hoy", las horas de las ventas y los días de la semana */
 const TZ = /^[+-]\d{2}:\d{2}$/.test(process.env.DB_TIMEZONE || '') ? process.env.DB_TIMEZONE : '-03:00';
 
-/* Catálogo del local (el mismo que usa la página) */
+/* Catálogo del local (el mismo que usa la página). Las categorías están en
+   public/categorias.js: la página y el servidor leen la misma lista. */
 const MATERIALES = {
   oro:         { pre: 'ORO', nombre: 'Oro' },
   plata:       { pre: 'PLA', nombre: 'Plata' },
   acero:       { pre: 'ACE', nombre: 'Acero' },
   'plata-oro': { pre: 'PYO', nombre: 'Plata y oro' },
 };
-const CATEGORIAS = { anillo: 'Anillo', cadena: 'Cadena', pulsera: 'Pulsera', aros: 'Aros', colgante: 'Colgante', reloj: 'Reloj' };
+const CATEGORIAS = require('./public/categorias.js');
 const PAGOS = ['Efectivo', 'Débito', 'Crédito', 'Transferencia', 'Mercado Pago'];
-const nombreAuto = (material, categoria) => `${CATEGORIAS[categoria]} de ${MATERIALES[material].nombre.toLowerCase()}`;
+/* "Cadena Singapur de plata": c = { categoria, subcategoria, variante } */
+const nombreAuto = (material, c) => `${CATEGORIAS.nombre(c)} de ${MATERIALES[material].nombre.toLowerCase()}`;
 
 const ENUM_MAT = Object.keys(MATERIALES).map(k => `'${k}'`).join(',');
-const ENUM_CAT = Object.keys(CATEGORIAS).map(k => `'${k}'`).join(',');
 
 function configBase() {
   const comun = {
@@ -89,7 +90,9 @@ async function crearEsquema(conn) {
       codigo          VARCHAR(12)  NOT NULL UNIQUE,
       nombre          VARCHAR(120) NOT NULL,
       material        ENUM(${ENUM_MAT}) NOT NULL,
-      categoria       ENUM(${ENUM_CAT}) NOT NULL,
+      categoria       VARCHAR(20)  NOT NULL,
+      subcategoria    VARCHAR(30)  NULL,
+      variante        VARCHAR(30)  NULL,
       precio          INT UNSIGNED NOT NULL,
       detalle         VARCHAR(200) NOT NULL DEFAULT '',
       estado          ENUM('disponible','reservado','vendido') NOT NULL DEFAULT 'disponible',
@@ -111,10 +114,12 @@ async function crearEsquema(conn) {
       pieza_id   INT NOT NULL,
       codigo     VARCHAR(12)  NOT NULL,
       nombre     VARCHAR(120) NOT NULL,
-      material   ENUM(${ENUM_MAT}) NOT NULL,
-      categoria  ENUM(${ENUM_CAT}) NOT NULL,
-      precio     INT UNSIGNED NOT NULL,
-      sena       INT UNSIGNED NOT NULL DEFAULT 0,
+      material     ENUM(${ENUM_MAT}) NOT NULL,
+      categoria    VARCHAR(20)  NOT NULL,
+      subcategoria VARCHAR(30)  NULL,
+      variante     VARCHAR(30)  NULL,
+      precio       INT UNSIGNED NOT NULL,
+      sena         INT UNSIGNED NOT NULL DEFAULT 0,
       medio_pago VARCHAR(20)  NOT NULL,
       fecha      DATETIME NOT NULL,
       KEY idx_fecha (fecha),
@@ -127,9 +132,11 @@ async function crearEsquema(conn) {
       id         INT AUTO_INCREMENT PRIMARY KEY,
       numero     INT UNSIGNED NOT NULL,
       foto_id    INT NOT NULL,
-      material   ENUM(${ENUM_MAT}) NULL,
-      categoria  ENUM(${ENUM_CAT}) NULL,
-      precio     INT UNSIGNED NOT NULL DEFAULT 0,
+      material     ENUM(${ENUM_MAT}) NULL,
+      categoria    VARCHAR(20)  NULL,
+      subcategoria VARCHAR(30)  NULL,
+      variante     VARCHAR(30)  NULL,
+      precio       INT UNSIGNED NOT NULL DEFAULT 0,
       nombre     VARCHAR(120) NOT NULL DEFAULT '',
       detalle    VARCHAR(200) NOT NULL DEFAULT '',
       borrada_en DATETIME NULL,
@@ -146,6 +153,40 @@ async function crearEsquema(conn) {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
   const filas = [...Object.keys(MATERIALES), 'foto'].map(k => [k, 0]);
   await conn.query('INSERT IGNORE INTO contadores (nombre, ultimo) VALUES ?', [filas]);
+
+  /* Datos sueltos del sistema (por ejemplo, qué versión de los datos de ejemplo se cargó) */
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS ajustes (
+      clave VARCHAR(30)  PRIMARY KEY,
+      valor VARCHAR(100) NOT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
+}
+
+/* Pone al día una base creada por una versión anterior. Se puede correr las veces que
+   haga falta: solo cambia lo que todavía no está. Funciona igual en MySQL 8 y en MariaDB. */
+async function migrar(conn) {
+  for (const tabla of ['piezas', 'ventas', 'pendientes']) {
+    const [cols] = await conn.query(
+      `SELECT COLUMN_NAME AS nombre, DATA_TYPE AS tipo FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`, [tabla]);
+    const tipo = Object.fromEntries(cols.map(c => [c.nombre, String(c.tipo).toLowerCase()]));
+    /* Antes la categoría era una lista fija (ENUM); ahora la lista vive en categorias.js */
+    if (tipo.categoria === 'enum') {
+      await conn.query(`ALTER TABLE ${tabla} MODIFY categoria VARCHAR(20) ${tabla === 'pendientes' ? 'NULL' : 'NOT NULL'}`);
+    }
+    if (!tipo.subcategoria) await conn.query(`ALTER TABLE ${tabla} ADD COLUMN subcategoria VARCHAR(30) NULL AFTER categoria`);
+    if (!tipo.variante) await conn.query(`ALTER TABLE ${tabla} ADD COLUMN variante VARCHAR(30) NULL AFTER subcategoria`);
+    /* Los colgantes ahora se llaman dijes */
+    await conn.query(`UPDATE ${tabla} SET categoria = 'dije' WHERE categoria = 'colgante'`);
+  }
+}
+
+async function leerAjuste(conn, clave) {
+  const [[fila]] = await conn.query('SELECT valor FROM ajustes WHERE clave = ?', [clave]);
+  return fila ? fila.valor : null;
+}
+async function guardarAjuste(conn, clave, valor) {
+  await conn.query('INSERT INTO ajustes (clave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?', [clave, String(valor), String(valor)]);
 }
 
 /* Lleva los contadores al número más alto que ya exista (por si se cargaron datos a mano) */
@@ -215,5 +256,6 @@ async function purgar(conn) {
 
 module.exports = {
   pool, PROD, TZ, MATERIALES, CATEGORIAS, PAGOS, nombreAuto,
-  asegurarBase, crearEsquema, sincronizarContadores, siguiente, siguienteCodigo, asegurarCuenta, purgar,
+  asegurarBase, crearEsquema, migrar, leerAjuste, guardarAjuste,
+  sincronizarContadores, siguiente, siguienteCodigo, asegurarCuenta, purgar,
 };

@@ -254,7 +254,7 @@ main{display:block;padding-top:44px}
 .btn.is-busy .spin{display:block}
 .btn.is-busy{cursor:progress}
 @keyframes spin{to{transform:rotate(360deg)}}
-.btn:not([disabled]):not(.btn-text):active,.cat:active,.opt:active,.x:active,.ut-x:active,.search-x:active,.tab:active,.mat:active,.logout:active,.eye:active{transform:scale(.97)}
+.btn:not([disabled]):not(.btn-text):active,.cat:active,.chip:active,.opt:active,.x:active,.ut-x:active,.search-x:active,.tab:active,.mat:active,.logout:active,.eye:active{transform:scale(.97)}
 .cat:active .cat-o{transform:scale(.96)}
 .ptile:active{transform:scale(.985)}
 .link{position:relative;padding:0;border:0;background:none;font-size:14.5px;color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--hair-3);text-underline-offset:4px;cursor:pointer;transition:color .15s ease}
@@ -303,7 +303,8 @@ main{display:block;padding-top:44px}
 .sort{grid-area:sort;display:flex;align-items:center;gap:10px;font-size:14px;color:var(--ink-3)}
 .sort select{height:40px;padding:0 34px 0 14px;border:1px solid var(--field);border-radius:20px;-webkit-appearance:none;appearance:none;background:var(--paper) var(--chev) no-repeat right 14px center;font-size:15px;font-weight:500;color:var(--ink);cursor:pointer}
 /* Las categorías como las historias destacadas del Instagram: círculo de mármol con el ícono en línea roja */
-.cats{grid-area:cats;min-width:0;display:flex;gap:8px;margin:-6px -4px -2px;padding:8px 4px 4px;overflow-x:auto;scrollbar-width:none}
+.tipos{grid-area:cats;min-width:0}
+.cats{min-width:0;display:flex;gap:8px;margin:-6px -4px -2px;padding:8px 4px 4px;overflow-x:auto;scrollbar-width:none}
 .cats::-webkit-scrollbar{display:none}
 .cat{position:relative;flex:none;display:flex;flex-direction:column;align-items:center;gap:8px;width:84px;padding:0;border:0;background:none;font-size:14px;line-height:1.2;color:var(--ink-2);cursor:pointer;transition:color .2s ease,transform .15s var(--ease-out)}
 .cat-o{display:grid;place-items:center;width:68px;height:68px;border-radius:50%;background:var(--marmol-c) var(--marmol) var(--mx,0) var(--my,0)/300px;box-shadow:0 0 0 2px var(--paper),0 0 0 3.5px #D7D2D0,0 6px 12px -6px rgba(40,30,32,.3);transition:box-shadow .2s ease}
@@ -312,6 +313,17 @@ main{display:block;padding-top:44px}
 .cat[aria-pressed="true"] .cat-o{box-shadow:0 0 0 2px var(--paper),0 0 0 4.5px var(--wine),0 8px 16px -8px rgba(155,27,59,.5)}
 .cat:focus-visible{outline:none}
 .cat:focus-visible .cat-o{outline:2px solid var(--wine);outline-offset:6px}
+/* Subcategorías: aparecen debajo de los íconos al elegir un tipo; la variante, en una fila más */
+.subs{display:grid;gap:10px;margin-top:14px}
+.subs-fila{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.subs-var{padding-left:14px;border-left:2px solid var(--wine-ring)}
+.subs-l{margin-right:4px;font-size:14.5px;font-weight:500;color:var(--ink-2)}
+.chip{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border:0;border-radius:22px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--hair),0 2px 6px -3px rgba(40,30,32,.2);font-size:15px;font-weight:500;line-height:1.2;color:var(--ink);text-align:left;cursor:pointer;transition:box-shadow .2s ease,color .2s ease,transform .15s var(--ease-out)}
+.chip .n{font-size:13px;font-weight:400;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.chip.cero{background:transparent;box-shadow:inset 0 0 0 1px var(--hair);color:var(--ink-3)}
+.chip[aria-pressed="true"]{background:linear-gradient(180deg,var(--wine-hi),var(--wine));color:var(--paper);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 6px 14px -6px rgba(155,27,59,.6)}
+.chip[aria-pressed="true"] .n{color:rgba(255,255,255,.85)}
+.chip:focus-visible{outline:2px solid var(--wine);outline-offset:2px}
 
 /* Estantes: cada fila de la grilla tiene su estante de vidrio; cada pieza, su etiqueta colgada */
 .grid{--alto:150px;position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));column-gap:0;row-gap:30px;margin-top:22px;scroll-margin-top:100px}
@@ -390,7 +402,16 @@ main{display:block;padding-top:44px}
 .paso-falta{display:none;margin-left:auto;padding:3px 10px;border-radius:999px;background:var(--wine);color:var(--paper);font-size:13px;font-weight:600}
 .paso.falta .paso-falta{display:inline-block}
 .opts.opts-big{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-.opts.opts-cat{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.opts.opts-cat{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+/* Las preguntas del tipo elegido (subcategoría y, si hace falta, una más), dentro del paso 2 */
+.ed-subs{display:grid;gap:12px;margin-top:14px}
+.ed-subs:empty{display:none}
+.subpaso{min-width:0;margin:0;padding:12px 12px 14px;border:0;border-radius:14px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--hair-2);transition:box-shadow .2s ease}
+.subpaso > legend{float:left;width:100%;padding:0;margin:0 0 10px;font-size:16.5px;font-weight:500;line-height:1.3;color:var(--ink)}
+.subpaso > legend + *{clear:left}
+.subpaso.falta{box-shadow:inset 0 0 0 2px var(--wine)}
+.subpaso.falta > legend::after{content:"Falta";display:inline-block;margin-left:10px;padding:2px 10px;border-radius:999px;background:var(--wine);color:var(--paper);font-size:13px;font-weight:600;vertical-align:1px}
+.opts-sub .opt > span{height:auto;min-height:46px;padding:8px 18px;font-size:16px;line-height:1.25;color:var(--ink)}
 .opts-big .opt,.opts-cat .opt{display:flex}
 .opts-big .opt > span,.opts-cat .opt > span{position:relative;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;height:auto;min-height:84px;padding:12px 6px 10px;border-radius:14px;font-size:16px;font-weight:500;line-height:1.2;text-align:center;color:var(--ink)}
 .opts-big .opt input:checked + span::after,.opts-cat .opt input:checked + span::after{content:"";position:absolute;top:7px;right:7px;width:18px;height:18px;background:var(--check) no-repeat center/14px}
@@ -534,6 +555,7 @@ main{display:block;padding-top:44px}
 .pd-links{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 28px;margin-top:8px}
 .pd-actions:has(#pdPhoto:focus-visible) label[for="pdPhoto"]{outline:2px solid var(--wine);outline-offset:3px}
 .pd-form{display:grid;gap:14px}
+.pd-cats{display:grid;gap:14px}
 .pay,.field{min-width:0;margin:0;padding:0;border:0}
 .pay legend,.field > legend{padding:0;margin-bottom:10px;font-size:14.5px;color:var(--ink-2)}
 .opts{display:flex;flex-wrap:wrap;gap:8px}
@@ -627,6 +649,7 @@ select.input{-webkit-appearance:none;appearance:none;padding-right:38px;backgrou
   .cat:not([aria-pressed="true"]):hover{color:var(--ink)}
   .cat:not([aria-pressed="true"]):hover .cat-o{box-shadow:0 0 0 2px var(--paper),0 0 0 3.5px var(--plata-deep),0 8px 16px -8px rgba(40,30,32,.35)}
   .opt:hover input:not(:checked) + span{box-shadow:inset 0 0 0 1px var(--hair-3),0 2px 6px -3px rgba(40,30,32,.25)}
+  .chip:not([aria-pressed="true"]):hover{box-shadow:inset 0 0 0 1px var(--hair-3),0 2px 6px -3px rgba(40,30,32,.25);color:var(--ink)}
   .x:hover,.search-x:hover{background:var(--page);color:var(--ink)}
   .eye:hover{color:var(--ink);background:rgba(50,40,42,.06)}
   .ut-x:hover{color:var(--ink)}
@@ -759,6 +782,7 @@ select.input{-webkit-appearance:none;appearance:none;padding-right:38px;backgrou
   .ld{gap:16px;padding-top:8px}
   .drop{padding:22px 16px}
   .up-opt .input-sm{flex:1 1 40%;min-width:0}
+  .up-opt #upSub,.up-opt #upVar{flex-basis:100%}
   .up-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
   .ld-foot .btn{flex:1}
   .ld-btns{flex:1 1 100%}
