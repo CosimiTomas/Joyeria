@@ -35,7 +35,8 @@ const DAYS_SHORT = ['dom','lun','mar','mié','jue','vie','sáb'];
 /* ── Datos: llegan del servidor al entrar (GET /api/estado) ── */
 let P = [];                    /* piezas en el local (disponibles y reservadas) */
 let SALES = [];                /* ventas de hoy, en el orden en que se hicieron */
-let PAST = [0, 0, 0, 0, 0, 0]; /* facturación de los seis días anteriores, del más viejo a ayer */
+let PAST = [];                 /* los seis días anteriores a hoy {fecha, total, cantidad}, del más viejo a ayer */
+let HOY = '';                  /* la fecha de hoy según el servidor (AAAA-MM-DD) */
 let PENDING = [];              /* fotos por completar */
 let ULT = {};                  /* último número de código usado por material */
 let TOKEN = null;              /* sesión (JWT) que da el servidor al ingresar */
@@ -52,6 +53,11 @@ const TODAY = new Date();
 const daysAgo = k => new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate() - k);
 const longDate = x => `${x.getDate()} de ${MONTHS[x.getMonth()]} de ${x.getFullYear()}`;
 const since = k => k <= 0 ? 'desde hoy' : k === 1 ? 'desde ayer' : `desde el ${daysAgo(k).getDate()} de ${MONTHS[daysAgo(k).getMonth()]}`;
+/* Fechas de calendario como texto AAAA-MM-DD, como las da el servidor */
+const isoDe = x => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+const deIso = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const sumarDias = (s, k) => { const x = deIso(s); x.setDate(x.getDate() + k); return isoDe(x); };
+HOY = isoDe(TODAY);
 const smooth = () => matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 const finePointer = matchMedia('(hover: hover) and (pointer: fine)').matches;
 const coarse = matchMedia('(pointer: coarse)').matches;
@@ -267,8 +273,13 @@ async function loadState(){
   P = s.piezas.map(dePieza);
   SALES = s.ventasHoy.map(deVenta);
   PENDING = s.pendientes.map(dePendiente);
-  PAST = s.semana.slice(0, 6);
+  HOY = s.hoy || isoDe(TODAY);
+  PAST = Array.from({length:6}, (_, i) => {
+    const f = sumarDias(HOY, i - 6);
+    return (s.dias || []).find(d => d.fecha === f) || {fecha:f, total:0, cantidad:0};
+  });
   ULT = s.ultimos || {};
+  Object.assign(vt, {fecha:HOY, dia:null, destino:'', pide:vt.pide + 1});
   renderStock(); renderVentas(); refreshAll();
 }
 /* Mientras se espera al servidor el botón queda ocupado (así no se toca dos veces) */
@@ -303,7 +314,7 @@ const autoName = x => `${CATS.nombre(catDe(x))} de ${MAT[x.m].name.toLowerCase()
 function renderFacts(){
   const reserved = P.filter(p => p.s === 'reservado').length;
   const value = P.reduce((s, p) => s + p.p, 0);
-  $('#facts').innerHTML = `<div><dt>Piezas en stock</dt><dd>${P.length}</dd></div><div><dt>Reservadas</dt><dd>${reserved}</dd></div><div><dt>Valor en stock</dt><dd>${money(value)}</dd></div>`;
+  $('#facts').innerHTML = `<div><dt>Piezas en stock</dt><dd>${P.length}</dd></div><div class="st-res"><dt>${reserved === 1 ? 'Reservada' : 'Reservadas'}</dt><dd>${reserved}</dd></div><div><dt>Valor del stock</dt><dd>${money(value)}</dd></div>`;
 }
 /* Los botones de material se crean una vez y después solo cambian sus números,
    así la burbuja puede deslizarse de uno a otro */
@@ -346,23 +357,40 @@ function renderSubs(){
   }
   box.innerHTML = html;
 }
+/* El mármol de fondo arranca en otro lugar en cada pieza, así las fotos no se ven repetidas */
+const vetas = c => { let h = 0; for (const ch of c) h = (h * 31 + ch.charCodeAt(0)) % 9973; return `--mx:${-(h % 400)}px;--my:${-((h * 7) % 400)}px`; };
+const ICO_BUSCAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>';
+const ICO_GEMA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.5h10l3.5 4.5L12 20 3.5 9z"/><path d="M3.5 9h17M9.5 4.5 8 9l4 11 4-11-1.5-4.5"/></svg>';
+const hayFiltros = () => !!(st.mat || st.cat || st.q.trim());
+/* Cada pieza: la foto grande sobre mármol; abajo el nombre, el código, el material y el precio.
+   Las reservadas llevan la etiqueta sobre la foto y para quién están. */
+function cardHTML(p, nueva){
+  const res = p.s === 'reservado';
+  return `<button type="button" class="card${res ? ' is-res' : ''}${nueva ? ' is-new' : ''}" data-code="${p.c}">
+    <span class="c-img${p.img ? ' is-foto' : ''}" style="${vetas(p.c)}"><img src="${pic(p)}" alt="" width="300" height="300" loading="lazy" decoding="async">${res ? '<span class="c-tag">Reservada</span>' : ''}</span>
+    <span class="c-body">
+      <span class="c-name">${txt(p.n)}</span>
+      <span class="c-meta"><span class="c-code">${p.c}</span><span>${p.ml}</span></span>
+      <span class="c-price">${money(p.p)}</span>
+      ${res && p.res ? `<span class="c-res">Para ${esc(p.res.who)}</span>` : ''}
+    </span>
+  </button>`;
+}
 function renderGrid(highlight){
   const list = P.filter(p => matches(p, true)).sort(SORTS[st.sort]);
   const grid = $('#grid');
-  if (!list.length){
-    grid.innerHTML = `<div class="empty"><p class="empty-t">No hay piezas con esos filtros</p><p>Probá con otro material, otra categoría o una búsqueda más corta.</p><button type="button" class="btn btn-quiet" data-clear>Ver todas las piezas</button></div>`;
+  $('#resultado').innerHTML = P.length && hayFiltros()
+    ? `${list.length === 1 ? '1 pieza' : `${list.length} piezas`} de ${P.length} <button type="button" class="link" data-clear>Quitar filtros</button>`
+    : '';
+  if (!P.length){
+    grid.innerHTML = `<div class="empty"><span class="empty-ico">${ICO_GEMA}</span><p class="empty-t">Todavía no hay piezas en el stock</p><p>Subí las fotos de las piezas nuevas y completá sus datos: cada una pasa sola al stock con su código.</p><button type="button" class="btn btn-primary" data-up>Subir fotos</button></div>`;
     return;
   }
-  grid.innerHTML = list.map(p => `<button type="button" class="card${p.s === 'reservado' ? ' is-res' : ''}${highlight && highlight.has(p.c) ? ' is-new' : ''}" data-code="${p.c}">
-    <span class="well">${p.img ? `<span class="slot-foto"><img src="${p.img}" alt="" width="200" height="200" loading="lazy" decoding="async"></span>` : `<img src="${art(p)}" alt="" width="200" height="200" loading="lazy" decoding="async">`}</span>
-    <span class="etq">
-      <span class="etq-code">${p.c}</span>
-      <span class="c-name">${txt(p.n)}</span>
-      <span class="c-mat">${p.ml}</span>
-      <span class="c-price">${money(p.p)}</span>
-      ${p.s === 'reservado' ? '<span class="etq-res">Reservada</span>' : ''}
-    </span>
-  </button>`).join('');
+  if (!list.length){
+    grid.innerHTML = `<div class="empty"><span class="empty-ico">${ICO_BUSCAR}</span><p class="empty-t">No hay piezas con esos filtros</p><p>Probá con otro material, otra categoría o una búsqueda más corta.</p><button type="button" class="btn btn-quiet" data-clear>Ver todas las piezas</button></div>`;
+    return;
+  }
+  grid.innerHTML = list.map(p => cardHTML(p, highlight && highlight.has(p.c))).join('');
   if (highlight) setTimeout(() => document.querySelectorAll('.card.is-new').forEach(c => c.classList.remove('is-new')), 2600);
 }
 function renderStock(highlight){ renderFacts(); renderMats(); renderCats(); renderSubs(); renderGrid(highlight); }
@@ -383,8 +411,7 @@ function missText(x, full){
   return miss.length ? `Faltan ${miss[0]} y ${miss[1]}` : '';
 }
 const knownText = x => [x.m && MAT[x.m].full, x.cat && CATS.nombre(catDe(x)), x.p && money(x.p)].filter(Boolean).join(', ');
-const ARROW_R = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>';
-const CHECK_BIG = '<svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="32" cy="32" r="28"/><path d="M20 33l8 8 16-17"/></svg>';
+const ICO_LISTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 /* Cada foto es una tarjeta blanca: la foto, su número, lo que ya tiene, lo que le falta y "Completar" */
 function tileHTML(x){
   const known = knownText(x);
@@ -394,7 +421,7 @@ function tileHTML(x){
       <span class="pt-name">Foto ${x.num}</span>
       ${known ? `<span class="pt-known">${esc(known)}</span>` : ''}
       <span class="pt-miss">${missText(x)}</span>
-      <span class="pt-go">Completar ${ARROW_R}</span>
+      <span class="pt-go">Completar</span>
     </span>
   </button>`;
 }
@@ -407,7 +434,8 @@ function renderPend(){
   $('#pendInfo').hidden = !n;
   $('#pendInfo').textContent = n === 1 ? 'Queda 1 foto por completar' : `Quedan ${n} fotos por completar`;
   $('#btnComplete').disabled = !n;
-  $('#pgrid').innerHTML = n ? PENDING.map(tileHTML).join('') : `<div class="empty pend-empty">${CHECK_BIG}<p class="empty-t">No hay fotos para completar</p><p>Cuando lleguen piezas nuevas, sacales una foto y subila acá.</p><button type="button" class="btn btn-primary btn-xl" data-up>Subir fotos</button></div>`;
+  $('#btnUpload2').hidden = !n;   /* sin fotos pendientes, el botón grande del aviso vacío es el que sube */
+  $('#pgrid').innerHTML = n ? PENDING.map(tileHTML).join('') : `<div class="empty pend-empty"><span class="empty-ico">${ICO_LISTO}</span><p class="empty-t">No hay fotos para completar</p><p>Cuando lleguen piezas nuevas, sacales una foto y subila acá.</p><button type="button" class="btn btn-primary btn-lg" data-up>Subir fotos</button></div>`;
 }
 function updateCounts(){
   const n = PENDING.length;
@@ -433,67 +461,248 @@ $('#pgrid').addEventListener('click', e => {
 $('#btnComplete').addEventListener('click', () => { if (PENDING.length) openEditor(PENDING[0].id); });
 $('#btnUpload2').addEventListener('click', () => openUpload());
 
-/* ── Ventas ── */
-let week = [];
+/* ── Ventas: el tablero de un día ──
+   Hoy se arma con lo que ya tiene la página (SALES y PAST), así una venta nueva aparece al instante.
+   Otro día se pide al servidor (GET /api/ventas/dia/AAAA-MM-DD); mientras llega, se ve el anterior atenuado. */
+const vt = {fecha:'', dia:null, destino:'', pide:0};   /* dia: {fecha, ventas, semana} cuando el elegido no es hoy */
+let semanaVista = [];                                  /* los 7 días que muestra el gráfico */
+let abierta = null;                                    /* la venta del comprobante abierto: {v, fecha} */
+const suma = vs => vs.reduce((s, v) => s + v.p, 0);
+const conteo = n => n === 1 ? '1 venta' : `${n} ventas`;
+const nombreDia = f => { const x = deIso(f); return `${DAYS[x.getDay()]} ${x.getDate()}`; };            /* lunes 16 */
+const diaMes = f => { const x = deIso(f); return `${nombreDia(f)} de ${MONTHS[x.getMonth()]}${x.getFullYear() === deIso(HOY).getFullYear() ? '' : ` de ${x.getFullYear()}`}`; };
+const fechaCorta = f => f.split('-').reverse().join('/');                                                  /* 18/11/2026 */
+const etiquetaDia = f => f === HOY ? 'Hoy' : f === sumarDias(HOY, -1) ? 'Ayer' : cap(nombreDia(f));
+/* El día anterior al elegido, para comparar: "ayer" o "el domingo 15" */
+const anterior = f => f === HOY ? 'ayer' : `el ${nombreDia(sumarDias(f, -1))}`;
 const arrow = up => `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${up ? 'M6 10V2M2.5 5.5 6 2l3.5 3.5' : 'M6 2v8M2.5 6.5 6 10l3.5-3.5'}"/></svg>`;
-function breakdown(entries, total){
-  return entries.map(([label, v]) => `<div class="mrow"><div class="mrow-top"><span>${esc(label)}</span><span class="v"><span class="pc">${total ? Math.round(v / total * 100) : 0}%</span>${money(v)}</span></div><div class="track"><span style="width:${total ? (v / total * 100).toFixed(1) : 0}%"></span></div></div>`).join('');
+const ICO_IMPRIMIR = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3.5h10V9M7 17H5a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 5 9h14a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 19 17h-2"/><path d="M7 14h10v6.5H7z"/></svg>';
+
+/* La semana que termina hoy: los seis días anteriores que dio el servidor y hoy, con lo que hay en la página */
+function semanaActual(){
+  const prev = PAST.length === 6 ? PAST : Array.from({length:6}, (_, i) => ({fecha:sumarDias(HOY, i - 6), total:0, cantidad:0}));
+  return [...prev, {fecha:HOY, total:suma(SALES), cantidad:SALES.length}];
 }
+function diaElegido(){
+  if (vt.dia && vt.fecha !== HOY) return vt.dia;
+  return {fecha:HOY, ventas:SALES, semana:semanaActual()};
+}
+/* Comparación con el día anterior: flecha y palabra, no solo color */
+function comparaPct(v, ant, cuando, conMonto){
+  if (!ant) return v ? `<span>${cap(cuando)} no hubo ventas</span>` : '';
+  const pc = Math.round((v - ant) / ant * 100);
+  if (!pc) return `<span>Igual que ${cuando}</span>`;
+  return `<span class="${pc > 0 ? 'sube' : 'baja'}">${arrow(pc > 0)} ${Math.abs(pc)}%</span> <span>${pc > 0 ? 'más' : 'menos'} que ${cuando}${conMonto ? ` (${money(ant)})` : ''}</span>`;
+}
+function comparaCant(n, ant, cuando){
+  if (!n && !ant) return '';
+  if (!ant) return `<span>${cap(cuando)} no hubo ventas</span>`;
+  const d = n - ant;
+  if (!d) return `<span>Igual que ${cuando}</span>`;
+  return `<span class="${d > 0 ? 'sube' : 'baja'}">${arrow(d > 0)} ${Math.abs(d)}</span> <span>${d > 0 ? 'más' : 'menos'} que ${cuando}</span>`;
+}
+/* Escala del gráfico: tres escalones redondos que cubren el día más alto */
+function escala(max){
+  for (let base = 1e4; ; base *= 10) for (const k of [1, 2, 2.5, 5]) if (base * k * 3 >= max) return base * k;
+}
+/* Barras horizontales (medios de pago, material, tipo): siempre las mismas filas y en el mismo orden,
+   así un día se compara con otro de un vistazo; las que no tuvieron ventas quedan atenuadas */
+const filas = (entradas, total) => entradas.map(([label, v, k]) => `<div class="mrow${v ? '' : ' cero'}">
+  <div class="mrow-top"><span>${esc(label)}${k ? `<span class="mrow-n">${conteo(k)}</span>` : ''}</span><span class="v">${v && total ? `<span class="pc">${Math.round(v / total * 100)}%</span>` : ''}${money(v)}</span></div>
+  <div class="track"><span style="width:${total ? (v / total * 100).toFixed(1) : 0}%"></span></div>
+</div>`).join('');
+const agrupar = (ventas, lista, de) => lista.map(([k, label]) => { const vs = ventas.filter(v => de(v) === k); return [label, suma(vs), vs.length]; });
+
 function renderVentas(){
-  const total = SALES.reduce((s, v) => s + v.p, 0), count = SALES.length;
-  const yesterday = PAST[PAST.length - 1];
-  const delta = yesterday ? Math.round((total - yesterday) / yesterday * 100) : 0;
-  $('#vDate').textContent = cap(`${DAYS[TODAY.getDay()]} ${TODAY.getDate()} de ${MONTHS[TODAY.getMonth()]}`);
+  const d = diaElegido(), ventas = d.ventas, total = suma(ventas), n = ventas.length;
+  const hoy = d.fecha === HOY, prev = d.semana[5] || {total:0, cantidad:0}, cuando = anterior(d.fecha);
+  const fecha = hoy ? `Hoy, ${diaMes(d.fecha)}` : cap(diaMes(d.fecha));
+  if ($('#vDate').textContent !== fecha) $('#vDate').textContent = fecha;
+  syncDia(vt.destino || d.fecha);
+
+  /* Los cuatro números del día */
   $('#hTotal').textContent = money(total);
-  $('#hDelta').innerHTML = `${arrow(delta >= 0)}<span>${Math.abs(delta)}% ${delta >= 0 ? 'más' : 'menos'} que ayer (${money(yesterday)})</span>`;
-  const best = SALES.reduce((a, v) => (!a || v.p > a.p ? v : a), null);
-  $('#vFacts').innerHTML = `<div><dt>Ventas</dt><dd>${count}</dd></div><div><dt>Ticket promedio</dt><dd>${money(count ? total / count : 0)}</dd></div><div><dt>Mejor venta</dt><dd>${best ? money(best.p) : '$0'}</dd></div>`;
+  $('#hDelta').innerHTML = comparaPct(total, prev.total, cuando, true);
+  $('#kCount').textContent = n;
+  $('#kCountD').innerHTML = comparaCant(n, prev.cantidad, cuando);
+  $('#kAvg').textContent = n ? money(total / n) : '—';
+  $('#kAvgD').innerHTML = n && prev.cantidad ? comparaPct(total / n, prev.total / prev.cantidad, cuando) : '';
+  const best = ventas.reduce((a, v) => (!a || v.p > a.p ? v : a), null);
+  $('#kBest').textContent = best ? money(best.p) : '—';
+  $('#kBestN').textContent = best ? best.n : 'Sin ventas';
 
-  $('#ledgerCount').textContent = plural(count, 'venta', 'ventas');
-  $('#tkTotal').textContent = money(total);
-  $('#tkDate').textContent = `${cap(DAYS[TODAY.getDay()])} ${TODAY.getDate()} de ${MONTHS[TODAY.getMonth()]} de ${TODAY.getFullYear()}`;
-  $('#ledger').innerHTML = [...SALES].reverse().map(v => `<div class="row${v.fresh ? ' is-new' : ''}" role="row">
-    <span class="r-time" role="cell">${v.t}</span>
-    <span class="r-piece" role="cell"><img class="r-thumb" src="${pic(v)}" alt="" width="48" height="48" decoding="async"><span class="r-txt"><span class="r-name">${txt(v.n)}</span><span class="r-code">${v.c}</span><span class="r-sub"><span>${v.c}</span><span>${v.pay}</span><span>${v.t}</span></span></span></span>
-    <span class="r-mat" role="cell">${MAT[v.m].full}</span>
-    <span class="r-pay" role="cell">${v.pay}</span>
-    <span class="r-amt" role="cell">${money(v.p)}</span>
-  </div>`).join('');
+  /* Evolución: si el día está en esta semana se ve la semana hasta hoy; si no, la que termina en ese día */
+  const actual = semanaActual();
+  semanaVista = actual.some(x => x.fecha === d.fecha) ? actual : d.semana;
+  const max = Math.max(...semanaVista.map(x => x.total)), paso = escala(max), tope = paso * 3;
+  const foco = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.wk-col') : null;
+  $('#wkSub').textContent = coarse ? 'Tocá una barra para ver ese día' : 'Hacé clic en una barra para ver ese día';
+  $('#wkPlot').innerHTML = (max ? [0, paso, paso * 2, tope] : [0]).map(t => `<div class="wk-tick${t ? '' : ' base'}" style="bottom:${t / tope * 100}%" aria-hidden="true"><span>$${short(t)}</span></div>`).join('') +
+    (max ? '' : '<p class="wk-empty">Sin ventas en estos 7 días</p>') +
+    semanaVista.map((x, i) => {
+      const sel = x.fecha === d.fecha;
+      return `<button type="button" class="wk-col${sel ? ' sel' : ''}" data-i="${i}" data-f="${x.fecha}"${sel ? ' aria-current="date"' : ''} aria-label="${etiquetaDia(x.fecha)}: ${money(x.total)}, ${conteo(x.cantidad)}">${sel && x.total ? `<span class="wk-val">$${short(x.total)}</span>` : ''}<span class="wk-bar" style="height:${x.total ? Math.max(1.5, x.total / tope * 100).toFixed(1) : 0}%"></span></button>`;
+    }).join('');
+  if (foco) $(`#wkPlot .wk-col[data-f="${foco.dataset.f}"]`)?.focus({preventScroll:true});
+  $('#wkAxis').innerHTML = semanaVista.map(x => `<span class="${x.fecha === d.fecha ? 'sel' : ''}">${x.fecha === HOY ? 'Hoy' : `<span class="wk-d">${DAYS_SHORT[deIso(x.fecha).getDay()]}</span> ${deIso(x.fecha).getDate()}`}</span>`).join('');
+  $('#wkRows').innerHTML = semanaVista.map(x => `<tr${x.fecha === d.fecha ? ' class="sel"' : ''}><td>${etiquetaDia(x.fecha)}${x.fecha === HOY || x.fecha === sumarDias(HOY, -1) ? `, ${nombreDia(x.fecha)}` : ''}</td><td>${conteo(x.cantidad)}</td><td>${money(x.total)}</td></tr>`).join('') +
+    `<tr class="tot"><td>Total</td><td>${conteo(semanaVista.reduce((s, x) => s + x.cantidad, 0))}</td><td>${money(semanaVista.reduce((s, x) => s + x.total, 0))}</td></tr>`;
 
-  const vals = [...PAST, total];
-  week = vals.map((v, i) => ({v, k:6 - i, d:daysAgo(6 - i)}));
-  const step = 500000, max = Math.max(step, Math.ceil(Math.max(...vals) / step) * step);
-  const label = x => x.k === 0 ? 'Hoy' : `${cap(DAYS[x.d.getDay()])} ${x.d.getDate()}`;
-  $('#wkSub').textContent = `${money(vals.reduce((s, v) => s + v, 0))} en la semana`;
-  $('#wkPlot').innerHTML = [0, max / 2, max].map(t => `<div class="wk-tick${t ? '' : ' base'}" style="bottom:${t / max * 100}%" aria-hidden="true"><span>$${short(t)}</span></div>`).join('') +
-    week.map((x, i) => `<div class="wk-col${x.k === 0 ? ' today' : ''}" role="listitem" tabindex="0" data-i="${i}" aria-label="${label(x)}: ${money(x.v)}"><span class="wk-bar" style="height:${Math.max(1.5, x.v / max * 100).toFixed(1)}%"></span></div>`).join('');
-  $('#wkAxis').innerHTML = week.map(x => `<span class="${x.k === 0 ? 'today' : ''}">${x.k === 0 ? 'Hoy' : DAYS_SHORT[x.d.getDay()]}</span>`).join('');
-  $('#wkRows').innerHTML = week.map(x => `<tr><td>${label(x)}</td><td>${money(x.v)}</td></tr>`).join('');
+  /* Medios de pago, material y tipo de pieza */
+  $('#byPay').innerHTML = filas(agrupar(ventas, PAYS.map(m => [m, m]), v => v.pay), total);
+  $('#byMat').innerHTML = filas(agrupar(ventas, Object.entries(MAT).map(([k, m]) => [k, m.name]), v => v.m), total);
+  $('#byTipo').innerHTML = filas(agrupar(ventas, Object.entries(TIPOS).map(([k, t]) => [k, t.plural]), v => v.cat), total);
 
-  const byPay = {}, byMat = {};
-  SALES.forEach(v => { byPay[v.pay] = (byPay[v.pay] || 0) + v.p; byMat[MAT[v.m].name] = (byMat[MAT[v.m].name] || 0) + v.p; });
-  $('#byPay').innerHTML = breakdown(Object.entries(byPay).sort((a, b) => b[1] - a[1]), total);
-  $('#byMat').innerHTML = breakdown(Object.entries(byMat).sort((a, b) => b[1] - a[1]), total);
+  /* Movimientos: la más nueva arriba; cada una abre su comprobante */
+  $('#ledgerCount').textContent = conteo(n);
+  $('.mov-h').hidden = !n;
+  $('#ledger').innerHTML = n ? [...ventas].reverse().map(v => `<li><button type="button" class="mov-row${v.fresh ? ' is-new' : ''}" data-venta="${v.id}" aria-label="${v.t}, ${esc(v.n)}, ${v.c}, ${v.pay}, ${money(v.p)}. Ver comprobante">
+      <span class="m-time">${v.t}</span>
+      <span class="m-piece"><img class="m-thumb${v.img ? ' is-foto' : ''}" src="${pic(v)}" alt="" width="46" height="46" loading="lazy" decoding="async"><span class="m-txt"><span class="m-name">${txt(v.n)}</span><span class="m-sub"><span>${v.c}</span><span class="m-mobile">${v.t}</span><span class="m-mobile">${v.pay}</span><span class="m-desk">${MAT[v.m].full}</span></span></span></span>
+      <span class="m-pay">${v.pay}</span>
+      <span class="m-amt">${money(v.p)}</span>
+    </button></li>`).join('')
+    : `<li class="mov-vacio"><p>${hoy ? 'Todavía no hay ventas hoy. Cuando registres una desde Stock, aparece acá.' : 'No hubo ventas este día.'}</p></li>`;
+  $('#movTotal').hidden = !n;
+  $('#movTotal').innerHTML = `<span>Total ${hoy ? 'de hoy' : 'del día'}</span><b>${money(total)}</b>`;
 }
+/* Controles del día: la fecha, ‹ › y "Volver a hoy" */
+function syncDia(f){
+  const fecha = $('#vFecha');
+  if (fecha.value !== f) fecha.value = f;
+  fecha.max = HOY;
+  $('#vNext').disabled = f >= HOY;
+  $('#vHoy').hidden = f === HOY;
+}
+function cargandoDia(on){
+  $('#vBody').classList.toggle('cargando-dia', on);
+  if (on) $('#vBody').setAttribute('aria-busy', 'true'); else $('#vBody').removeAttribute('aria-busy');
+}
+async function irA(f){
+  if (!f || f < '2000-01-01') return;
+  if (f > HOY) f = HOY;
+  const pido = ++vt.pide;
+  if (f === HOY){
+    Object.assign(vt, {fecha:HOY, dia:null, destino:''});
+    cargandoDia(false); renderVentas(); return;
+  }
+  vt.destino = f;
+  syncDia(f);
+  cargandoDia(true);
+  let r;
+  try { r = await api(`/ventas/dia/${f}`); }
+  catch (err){
+    if (pido !== vt.pide) return;
+    vt.destino = ''; cargandoDia(false); syncDia(vt.fecha || HOY);
+    if (!err.sesion) toast(err.message);
+    return;
+  }
+  if (pido !== vt.pide) return;
+  Object.assign(vt, {fecha:r.fecha, dia:{fecha:r.fecha, ventas:r.ventas.map(deVenta), semana:r.semana}, destino:''});
+  cargandoDia(false);
+  renderVentas();
+}
+$('#vPrev').addEventListener('click', () => irA(sumarDias(vt.destino || vt.fecha || HOY, -1)));
+$('#vNext').addEventListener('click', () => irA(sumarDias(vt.destino || vt.fecha || HOY, 1)));
+$('#vHoy').addEventListener('click', () => { irA(HOY); $('#vPrev').focus({preventScroll:true}); });
+$('#vFecha').addEventListener('change', e => { if (/^\d{4}-\d\d-\d\d$/.test(e.target.value)) irA(e.target.value); });
+$('#wkPlot').addEventListener('click', e => { const c = e.target.closest('.wk-col'); if (c && c.dataset.f !== (vt.destino || vt.fecha)) irA(c.dataset.f); });
+$('#ledger').addEventListener('click', e => { const b = e.target.closest('.mov-row'); if (b) openVenta(+b.dataset.venta); });
+$('#vPrint').addEventListener('click', () => imprimir(cierreHTML(diaElegido())));
 
-/* Tooltip de las barras: mouse, teclado y toque */
+/* Tooltip de las barras: con el mouse encima o con el foco del teclado */
 const tip = $('#wkTip'), plot = $('#wkPlot');
 function showTip(col){
-  const x = week[+col.dataset.i]; if (!x) return;
-  const box = $('#week').getBoundingClientRect(), bar = col.firstElementChild.getBoundingClientRect();
-  tip.innerHTML = `<b>${money(x.v)}</b><span>${x.k === 0 ? 'Hoy' : cap(DAYS[x.d.getDay()])}, ${x.d.getDate()} de ${MONTHS[x.d.getMonth()]}</span>`;
+  const x = semanaVista[+col.dataset.i]; if (!x) return;
+  const box = $('#week').getBoundingClientRect(), bar = col.querySelector('.wk-bar').getBoundingClientRect();
+  tip.innerHTML = `<b>${money(x.total)}</b><span>${etiquetaDia(x.fecha)}${x.fecha === HOY ? '' : `, ${deIso(x.fecha).getDate()} de ${MONTHS[deIso(x.fecha).getMonth()]}`}: ${conteo(x.cantidad)}</span>`;
   const half = tip.offsetWidth / 2, center = bar.left + bar.width / 2 - box.left;
   tip.style.left = Math.min(Math.max(center, half), box.width - half) + 'px';
-  tip.style.top = (bar.top - box.top) + 'px';
+  tip.style.top = (Math.min(bar.top, col.getBoundingClientRect().bottom - 2) - box.top) + 'px';
   tip.classList.add('on');
 }
 const hideTip = () => tip.classList.remove('on');
 plot.addEventListener('pointerover', e => { const c = e.target.closest('.wk-col'); if (c && e.pointerType === 'mouse') showTip(c); });
 plot.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') hideTip(); });
-plot.addEventListener('click', e => { const c = e.target.closest('.wk-col'); if (c) showTip(c); });
-plot.addEventListener('focusin', e => { const c = e.target.closest('.wk-col'); if (c) showTip(c); });
+plot.addEventListener('focusin', e => { const c = e.target.closest('.wk-col'); if (c && c.matches(':focus-visible')) showTip(c); });
 plot.addEventListener('focusout', hideTip);
 document.addEventListener('click', e => { if (!plot.contains(e.target)) hideTip(); });
+
+/* ── Comprobante de una venta y cierre del día ── */
+const tkHead = () => `<div class="tk-head"><p class="logo"><span class="logo-script">Stella Maris</span><span class="logo-sub">Joyas</span></p><p>Av. Libertador San Martín 2038, Caseros</p></div>`;
+function ticketHTML(v, fecha){
+  const cat = v.cat ? CATS.texto(catDe(v), ' › ') : '';
+  return `<div class="tk">${tkHead()}
+    <p class="tk-t">Comprobante de venta</p>
+    <dl class="tk-dl">
+      <div><dt>Operación</dt><dd>N.º ${String(v.id).padStart(6, '0')}</dd></div>
+      <div><dt>Fecha</dt><dd>${fechaCorta(fecha)}</dd></div>
+      <div><dt>Hora</dt><dd>${v.t}</dd></div>
+    </dl>
+    <div class="tk-items"><div class="tk-it"><b>${txt(v.n)}</b><span class="tk-a">${money(v.p)}</span><span class="tk-q">${v.c}, ${MAT[v.m].full}</span>${cat ? `<span class="tk-q">${esc(cat)}</span>` : ''}</div></div>
+    <div class="tk-total"><span>Total</span><span>${money(v.p)}</span></div>
+    <p class="tk-pago">Medio de pago: ${v.pay}</p>
+    <p class="tk-gracias">¡Gracias por tu compra!<br>Documento no válido como factura</p>
+  </div>`;
+}
+function cierreHTML(d){
+  const total = suma(d.ventas), ahora = new Date();
+  const pagos = agrupar(d.ventas, PAYS.map(m => [m, m]), v => v.pay).filter(([, s]) => s);
+  return `<div class="tk">${tkHead()}
+    <p class="tk-t">Cierre del día</p>
+    <dl class="tk-dl"><div><dt>Fecha</dt><dd>${fechaCorta(d.fecha)}</dd></div><div><dt>Ventas</dt><dd>${d.ventas.length}</dd></div></dl>
+    <div class="tk-items">${d.ventas.length ? d.ventas.map(v => `<div class="tk-it"><b>${v.t} ${v.c}</b><span class="tk-a">${money(v.p)}</span><span class="tk-q">${txt(v.n)}, ${v.pay}</span></div>`).join('') : '<p class="tk-q">No hubo ventas.</p>'}</div>
+    ${pagos.length ? `<div class="tk-sums">${pagos.map(([m, s, k]) => `<div><span>${m} (${k})</span><span>${money(s)}</span></div>`).join('')}</div>` : ''}
+    <div class="tk-total"><span>Total</span><span>${money(total)}</span></div>
+    <p class="tk-gracias">Impreso el ${fechaCorta(isoDe(ahora))} a las ${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}</p>
+  </div>`;
+}
+/* Imprime solo el ticket: se copia a un contenedor que es lo único que sale en papel */
+function imprimir(html){
+  const box = $('#imprimir');
+  box.innerHTML = html;
+  const limpiar = () => { box.innerHTML = ''; removeEventListener('afterprint', limpiar); };
+  addEventListener('afterprint', limpiar);
+  window.print();
+}
+const cpBotones = anulable => `<button type="button" class="btn btn-quiet" data-act="cp-print">${ICO_IMPRIMIR}Imprimir</button>${anulable ? '<button type="button" class="btn btn-danger" data-act="cp-void">Anular venta</button>' : ''}`;
+function ventaHTML(v, fecha){
+  const anulable = fecha === HOY;
+  return `<div class="cp">
+    <h2 class="cp-t">Venta de ${v.c}</h2>
+    ${ticketHTML(v, fecha)}
+    <div class="cp-actions" id="cpActions">${cpBotones(anulable)}</div>
+    ${anulable ? '' : '<p class="cp-nota">Las ventas de días anteriores ya no se pueden anular.</p>'}
+  </div>`;
+}
+function openVenta(id){
+  const d = diaElegido(), v = d.ventas.find(x => x.id === id);
+  if (!v) return;
+  abierta = {v, fecha:d.fecha};
+  openSheet(ventaHTML(v, d.fecha), `Comprobante de la venta de ${v.c}`, 'narrow');
+  mode = 'sale';
+}
+function cpConfirmar(){
+  const {v} = abierta;
+  $('#cpActions').innerHTML = `<div class="cp-confirm" role="group" aria-labelledby="cpPreg"><p id="cpPreg">¿Anular la venta de ${v.c}? La pieza vuelve al stock.</p><div><button type="button" class="btn btn-quiet" data-act="cp-void-no">No, volver</button><button type="button" class="btn btn-primary" data-act="cp-void-ok">Sí, anular</button></div></div>`;
+  $('#cpActions [data-act="cp-void-no"]').focus({preventScroll:true});
+}
+function cpVolver(){
+  $('#cpActions').innerHTML = cpBotones(abierta.fecha === HOY);
+  $('#cpActions [data-act="cp-void"]')?.focus({preventScroll:true});
+}
+async function anular(btn){
+  const {v} = abierta;
+  const done = busy(btn, 'Anulando…');
+  let u;
+  try { u = await api(`/ventas/${v.id}/deshacer`, {method:'POST'}); }
+  catch (err){ done(); if (!err.sesion) toast(err.message); return; }
+  const i = SALES.findIndex(s => s.id === v.id); if (i > -1) SALES.splice(i, 1);
+  if (!P.some(p => p.c === u.pieza.codigo)) P.push(dePieza(u.pieza));
+  closeSheet(true);
+  renderStock(); renderVentas();
+  toast(`Venta de ${v.c} anulada. La pieza volvió al stock.`);
+}
 
 /* ── Vistas: se pueden abrir directo con #stock, #por-completar o #ventas, y se recuerda la última ── */
 const VIEWS = ['stock', 'pend', 'ventas'];
@@ -512,6 +721,8 @@ function placeBubbles(instant){
   placeBubble($('#mats'), $('#mats .mat[aria-pressed="true"]'), instant);
 }
 function setView(v){
+  const venia = $('#tab-ventas').getAttribute('aria-selected') === 'true';
+  if (v === 'ventas' && !venia && (vt.fecha !== HOY || vt.destino)) irA(HOY);
   document.querySelectorAll('.tab').forEach(t => {
     const on = t.dataset.view === v;
     t.setAttribute('aria-selected', String(on));
@@ -565,7 +776,8 @@ function openSheet(html, label, wide){
   clearTimeout(closeTimer);
   body.innerHTML = html;
   sheet.setAttribute('aria-label', label);
-  sheet.classList.toggle('wide', !!wide);
+  sheet.classList.toggle('wide', wide === true);
+  sheet.classList.toggle('narrow', wide === 'narrow');
   if (!isOpen()){
     if (overlay.hidden) lastFocus = toastEl.contains(document.activeElement) ? null : document.activeElement;
     overlay.hidden = false;
@@ -579,9 +791,9 @@ function openSheet(html, label, wide){
 /* Al cerrar, el foco vuelve a lo que abrió la hoja; si eso ya no está (pieza vendida,
    foto completada, otra pestaña), a la misma tarjeta re-dibujada o al contenido */
 function restoreFocus(back){
-  const key = back && back.dataset ? (back.dataset.code || back.dataset.id) : '';
+  const key = back && back.dataset ? (back.dataset.code || back.dataset.id || back.dataset.venta) : '';
   let el = back && back.isConnected && back.getClientRects().length ? back : null;
-  if (!el && key) el = document.querySelector(`.card[data-code="${key}"], .ptile[data-id="${key}"]`);
+  if (!el && key) el = document.querySelector(`.card[data-code="${key}"], .ptile[data-id="${key}"], .mov-row[data-venta="${key}"]`);
   (el || $('#contenido')).focus({preventScroll:true});
 }
 function closeSheet(force){
@@ -689,19 +901,18 @@ const editHTML = p => `<div class="pd-form">
 function specsOf(p){
   const rows = [];
   if (p.s === 'reservado' && p.res) rows.push(['Reservada para', `${p.res.who}, ${p.res.sena ? `seña de ${money(p.res.sena)}` : 'sin seña'}, ${since(p.res.d)}`]);
-  rows.push(['Material', p.ml], ['Categoría', CATS.texto(catDe(p))]);
+  rows.push(['Material', p.ml], ['Categoría', CATS.texto(catDe(p), ' › ')]);
   if (p.det) rows.push(['Detalle', p.det]);
   rows.push(['Ingreso', p.d === 0 ? 'Hoy' : longDate(daysAgo(p.d))]);
   return rows;
 }
 function pieceHTML(p){
   return `<div class="pd" data-code="${p.c}">
-    <div class="pd-well"><img src="${pic(p)}" alt="${p.img ? 'Foto' : 'Ilustración'} de ${esc(p.n)}" decoding="async"></div>
+    <div class="pd-well${p.img ? ' is-foto' : ''}"><img src="${pic(p)}" alt="${p.img ? 'Foto' : 'Ilustración'} de ${esc(p.n)}" decoding="async"></div>
     <div class="pd-info">
-      <p class="pd-code">${p.c}</p>
+      <div class="pd-top"><p class="pd-code">${p.c}</p><p class="state ${p.s}">${p.s === 'reservado' ? 'Reservada' : 'Disponible'}</p></div>
       <h2 class="pd-name">${txt(p.n)}</h2>
       <p class="pd-price">${money(p.p)}</p>
-      <p class="state ${p.s}">${p.s === 'reservado' ? 'Reservada' : 'Disponible'}</p>
       <dl class="specs">${specsOf(p).map(([k, v]) => `<div><dt>${k}</dt><dd>${txt(v)}</dd></div>`).join('')}</dl>
       <div class="pd-actions">${actionsHTML(p)}</div>
     </div>
@@ -1196,6 +1407,10 @@ body.addEventListener('click', e => {
     case 'ed-del': edAskDelete(); return;
     case 'ed-del-no': edCancelDelete(); return;
     case 'ed-del-ok': edDelete(); return;
+    case 'cp-print': if (abierta) imprimir(ticketHTML(abierta.v, abierta.fecha)); return;
+    case 'cp-void': if (abierta) cpConfirmar(); return;
+    case 'cp-void-no': if (abierta) cpVolver(); return;
+    case 'cp-void-ok': if (abierta) anular(b); return;
   }
   const p = P.find(x => x.c === body.querySelector('.pd')?.dataset.code); if (!p) return;
   const actions = body.querySelector('.pd-actions');
@@ -1270,6 +1485,7 @@ document.addEventListener('keydown', e => {
     if (zoomed){ zoomed.setAttribute('aria-pressed', 'false'); return; }
     if (mode === 'upload' && up.confirming){ up.confirming = false; upFoot(); sheet.focus({preventScroll:true}); return; }
     if (mode === 'editor' && $('#edFoot .ed-confirm')){ edCancelDelete(); return; }
+    if (mode === 'sale' && $('#cpActions .cp-confirm')){ cpVolver(); return; }
     closeSheet(); return;
   }
 });
@@ -1307,8 +1523,10 @@ $('#qClear').addEventListener('click', () => { clearSearch(); renderMats(); rend
 $('#sort').addEventListener('change', e => { st.sort = e.target.value; renderGrid(); });
 $('#grid').addEventListener('click', e => {
   if (e.target.closest('[data-clear]')){ clearFilters(); return; }
+  if (e.target.closest('[data-up]')){ openUpload(); return; }
   const c = e.target.closest('.card'); if (c) openPiece(c.dataset.code);
 });
+$('#resultado').addEventListener('click', e => { if (e.target.closest('[data-clear]')){ clearFilters(); $('#q').focus({preventScroll:true}); } });
 $('#btnAdd').addEventListener('click', () => openUpload());
 
 /* ── Aviso breve: se pausa con el mouse o el foco encima y al cambiar de pestaña ── */
@@ -1508,7 +1726,8 @@ $('#btnLogout').addEventListener('click', () => {
   setToken(null);
   hideTip();
   /* en una compu compartida no quedan datos a la vista detrás del ingreso */
-  P = []; SALES = []; PENDING = [];
+  P = []; SALES = []; PENDING = []; PAST = [];
+  Object.assign(vt, {fecha:HOY, dia:null, destino:'', pide:vt.pide + 1});
   renderStock(); renderVentas(); refreshAll();
   showLogin(true);
   toast('Cerraste la sesión');

@@ -93,6 +93,19 @@ function entero(v, { min = 0, max = 999999999 } = {}) {
 const codigoValido = c => /^[A-Z]{3}-\d{3,7}$/.test(c);
 const urlFoto = clave => (clave ? `/api/fotos/${clave}` : null);
 
+/* Fechas de calendario como texto 'AAAA-MM-DD' (así llegan de la base y así se piden) */
+function fechaValida(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v ?? ''));
+  if (!m) return null;
+  const [a, me, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const f = new Date(Date.UTC(a, me - 1, d));
+  return a >= 2000 && f.getUTCFullYear() === a && f.getUTCMonth() === me - 1 && f.getUTCDate() === d ? m[0] : null;
+}
+function sumarDias(fecha, k) {
+  const [a, me, d] = fecha.split('-').map(Number);
+  return new Date(Date.UTC(a, me - 1, d + k)).toISOString().slice(0, 10);
+}
+
 /* Tipo de pieza, subcategoría y variante (la lista está en public/categorias.js).
    Cada nivel tiene que existir dentro del de arriba; con { completa: true } además
    tienen que estar todos los niveles que corresponden. Devuelve { c, completa }. */
@@ -272,12 +285,7 @@ app.get('/api/estado', requireAuth, ruta(async (req, res) => {
   const [piezas] = await pool.query(`${SQL_PIEZA} WHERE p.estado <> 'vendido' ORDER BY p.id`);
   const [pendientes] = await pool.query(`${SQL_PENDIENTE} WHERE q.borrada_en IS NULL ORDER BY q.id`);
   const [ventas] = await pool.query(`${SQL_VENTA} WHERE v.fecha >= CURDATE() AND v.fecha < CURDATE() + INTERVAL 1 DAY ORDER BY v.fecha, v.id`);
-  const [dias] = await pool.query(`
-    SELECT DATEDIFF(CURDATE(), DATE(fecha)) AS hace, SUM(precio) AS total
-      FROM ventas WHERE fecha >= CURDATE() - INTERVAL 6 DAY AND fecha < CURDATE() + INTERVAL 1 DAY
-     GROUP BY hace`);
-  const semana = [0, 0, 0, 0, 0, 0, 0];   // de hace 6 días a hoy
-  dias.forEach(d => { const k = Number(d.hace); if (k >= 0 && k <= 6) semana[6 - k] = Number(d.total); });
+  const dias = await semanaHasta(hoy);
   const [cont] = await pool.query('SELECT nombre, ultimo FROM contadores');
   const ultimos = {};
   cont.forEach(c => { if (MATERIALES[c.nombre]) ultimos[c.nombre] = Number(c.ultimo); });
@@ -286,9 +294,33 @@ app.get('/api/estado', requireAuth, ruta(async (req, res) => {
     piezas: piezas.map(piezaJSON),
     pendientes: pendientes.map(pendienteJSON),
     ventasHoy: ventas.map(ventaJSON),
-    semana,
+    semana: dias.map(d => d.total),   // de hace 6 días a hoy (se mantiene por compatibilidad)
+    dias,                             // los mismos 7 días con fecha, total y cantidad de ventas
     ultimos,
   });
+}));
+
+/* Facturación y cantidad de ventas de los 7 días que terminan en `fecha` (del más viejo al pedido) */
+async function semanaHasta(fecha) {
+  const desde = sumarDias(fecha, -6);
+  const [filas] = await pool.query(`
+    SELECT DATE_FORMAT(fecha, '%Y-%m-%d') AS dia, SUM(precio) AS total, COUNT(*) AS cantidad
+      FROM ventas WHERE fecha >= ? AND fecha < CAST(? AS DATE) + INTERVAL 1 DAY
+     GROUP BY dia`, [desde, fecha]);
+  const porDia = Object.fromEntries(filas.map(f => [f.dia, f]));
+  return Array.from({ length: 7 }, (_, i) => {
+    const f = sumarDias(desde, i), r = porDia[f];
+    return { fecha: f, total: r ? Number(r.total) : 0, cantidad: r ? Number(r.cantidad) : 0 };
+  });
+}
+
+/* Las ventas de un día cualquiera, para el tablero de Ventas */
+app.get('/api/ventas/dia/:fecha', requireAuth, ruta(async (req, res) => {
+  const fecha = fechaValida(req.params.fecha);
+  if (!fecha) throw new Aviso(400, 'La fecha no es válida.');
+  const [ventas] = await pool.query(
+    `${SQL_VENTA} WHERE v.fecha >= ? AND v.fecha < CAST(? AS DATE) + INTERVAL 1 DAY ORDER BY v.fecha, v.id`, [fecha, fecha]);
+  res.json({ fecha, ventas: ventas.map(ventaJSON), semana: await semanaHasta(fecha) });
 }));
 
 /* ------------------------------------------------------------

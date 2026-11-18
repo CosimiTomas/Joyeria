@@ -7,11 +7,11 @@ Cada pieza es única: se carga con foto, se vende (o se reserva con seña) y que
 
 ## Qué hace
 
-- **Stock:** grilla con foto, filtros por material y por tipo de pieza → subcategoría → variante (con cuántas hay de cada una), búsqueda por nombre, código o categoría.
+- **Stock:** grilla con foto, filtros por material y por tipo de pieza → subcategoría → variante (con cuántas hay de cada una), búsqueda por nombre, código o categoría, orden por fecha, precio o código. Las reservadas se marcan sobre la foto con el nombre de la clienta.
 - **Vender:** medio de pago (efectivo, débito, crédito, transferencia, Mercado Pago) y **Deshacer** el mismo día.
 - **Reservas:** nombre de la clienta y seña; al venderla se descuenta la seña.
 - **Por completar:** se suben muchas fotos juntas y después se completan de a una (material, tipo de pieza con su subcategoría, precio). Al guardar, la pieza recibe su código (`ORO-020`, `PLA-031`…). Si son todas iguales, el material y la categoría se eligen una vez para todas.
-- **Ventas:** ticket del día y resumen de la semana.
+- **Ventas:** tablero de cualquier día (‹ ›, calendario o tocando una barra): facturación, cantidad, ticket promedio y mejor venta comparados con el día anterior, últimos 7 días, medios de pago, por material y por tipo de pieza, movimientos con su comprobante (imprimir y anular, solo el mismo día) e **Imprimir cierre** del día.
 - **Ingreso:** una cuenta compartida. La clave se valida en el servidor (bcrypt) y la sesión usa JWT.
 
 ## Estructura
@@ -61,7 +61,8 @@ Todas menos `/api/health`, `/api/login` y `/api/fotos/:clave` piden `Authorizati
 |---|---|---|
 | GET | `/api/health` | chequeo del servidor |
 | POST | `/api/login` | `{usuario, password, recordar}` → token (30 días con recordar, si no 12 h) |
-| GET | `/api/estado` | stock, por completar, ventas de hoy, semana |
+| GET | `/api/estado` | stock, por completar, ventas de hoy, semana (`semana`: totales; `dias`: fecha, total y cantidad) |
+| GET | `/api/ventas/dia/:fecha` | ventas de un día (`AAAA-MM-DD`) y los 7 días que terminan en él |
 | POST | `/api/piezas/:codigo/vender` | `{medio}` |
 | POST | `/api/ventas/:id/deshacer` | anula una venta del día |
 | POST | `/api/piezas/:codigo/reserva` | `{cliente, sena}` |

@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Stella Maris Joyas</title>
 <meta name="description" content="Stock y ventas de Stella Maris Joyas">
-<meta name="theme-color" content="#F2F0EE">
+<meta name="theme-color" content="#FFFFFF">
 <meta name="robots" content="noindex">
 <link rel="icon" href="/img/icono.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Jost:wght@300..600&family=Kaushan+Script&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Jost:wght@300..700&family=Kaushan+Script&display=swap">
 <link rel="stylesheet" href="/styles.css">
 <script src="/categorias.js" defer></script>
 <script src="/app.js" defer></script>
@@ -92,7 +92,7 @@
         <div class="tabs" id="tabs" role="tablist">
           <span class="bubble" aria-hidden="true"></span>
           <button type="button" class="tab" role="tab" id="tab-stock" data-view="stock" aria-selected="true" aria-controls="view-stock"><svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.5h10l3.5 4.5L12 20 3.5 9z"/><path d="M3.5 9h17M9.5 4.5 8 9l4 11 4-11-1.5-4.5"/></svg><span class="tab-l">Stock</span></button>
-          <button type="button" class="tab" role="tab" id="tab-pend" data-view="pend" aria-selected="false" aria-controls="view-pend" tabindex="-1"><svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5h3.2l1.8-2.7h7l1.8 2.7h3.2v10.7h-17z"/><circle cx="12" cy="13.6" r="3.6"/></svg><span class="tab-l">Por completar</span> <span class="tab-n" id="pendCount"></span></button>
+          <button type="button" class="tab" role="tab" id="tab-pend" data-view="pend" aria-selected="false" aria-controls="view-pend" tabindex="-1"><svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5h3.2l1.8-2.7h7l1.8 2.7h3.2v10.7h-17z"/><circle cx="12" cy="13.6" r="3.6"/></svg><span class="tab-l">Por completar</span><span class="tab-n" id="pendCount" hidden></span></button>
           <button type="button" class="tab" role="tab" id="tab-ventas" data-view="ventas" aria-selected="false" aria-controls="view-ventas" tabindex="-1"><svg class="tab-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16M7 16.5v-5M12 16.5V6.5M17 16.5v-8"/></svg><span class="tab-l">Ventas</span></button>
         </div>
       </nav>
@@ -107,46 +107,37 @@
       <div class="wrap">
         <div class="head">
           <div class="head-main">
-            <div class="title-row"><h1 class="title">Vitrina</h1></div>
-            <p class="subtitle">Todo lo que hay en el local. Cada pieza es única: cuando se vende, sale de la vitrina.</p>
+            <h1 class="title">Stock</h1>
+            <dl class="stats" id="facts"></dl>
           </div>
-          <div class="actions actions-end">
-            <button type="button" class="btn btn-primary btn-icon" id="btnAdd"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Subir fotos</button>
+          <div class="actions">
+            <button type="button" class="btn btn-primary" id="btnAdd"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Subir fotos</button>
           </div>
         </div>
 
-        <div class="mueble">
-          <span class="cornisa" aria-hidden="true"></span>
-          <div class="mueble-panel">
-            <dl class="placa" id="facts"></dl>
-            <div class="search" id="searchBox">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
-              <input id="q" name="q" type="search" placeholder="Nombre o código…" autocomplete="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar piezas">
-              <button type="button" class="search-x" id="qClear" aria-label="Borrar la búsqueda" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-            </div>
+        <div class="toolbar">
+          <div class="search" id="searchBox">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+            <input id="q" name="q" type="search" placeholder="Nombre, código o categoría" autocomplete="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar piezas">
+            <button type="button" class="search-x" id="qClear" aria-label="Borrar la búsqueda" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
           </div>
-          <div class="mueble-cuerpo">
-            <div class="vidrio">
-              <div class="filters">
-                <div class="mats" id="mats" role="group" aria-label="Material"></div>
-                <label class="sort" for="sort">Ordenar
-                  <select id="sort" name="sort">
-                    <option value="recent">Más recientes</option>
-                    <option value="price-asc">Menor precio</option>
-                    <option value="price-desc">Mayor precio</option>
-                    <option value="code">Código</option>
-                  </select>
-                </label>
-                <div class="tipos">
-                  <div class="cats" id="cats" role="group" aria-label="Tipo de pieza"></div>
-                  <div class="subs" id="subs" hidden></div>
-                </div>
-              </div>
-              <div class="grid" id="grid"></div>
-            </div>
-          </div>
-          <span class="patas" aria-hidden="true"></span>
+          <label class="sort" for="sort"><span class="sort-l">Ordenar</span>
+            <select id="sort" name="sort">
+              <option value="recent">Más recientes</option>
+              <option value="price-asc">Menor precio</option>
+              <option value="price-desc">Mayor precio</option>
+              <option value="code">Código</option>
+            </select>
+          </label>
         </div>
+
+        <div class="filters">
+          <div class="cats" id="cats" role="group" aria-label="Tipo de pieza"></div>
+          <div class="mats" id="mats" role="group" aria-label="Material"></div>
+          <div class="subs" id="subs" hidden></div>
+        </div>
+        <p class="result" id="resultado" aria-live="polite"></p>
+        <div class="grid" id="grid"></div>
       </div>
     </section>
 
@@ -154,11 +145,11 @@
       <div class="wrap">
         <div class="head">
           <div class="head-main">
-            <div class="title-row"><h1 class="title">Por completar</h1></div>
+            <h1 class="title">Por completar</h1>
             <p class="subtitle" id="pendLead"></p>
           </div>
-          <div class="actions actions-end">
-            <button type="button" class="btn btn-quiet btn-icon" id="btnUpload2"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Subir fotos</button>
+          <div class="actions">
+            <button type="button" class="btn btn-quiet" id="btnUpload2"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Subir fotos</button>
           </div>
         </div>
         <div class="pp" id="pendStart">
@@ -180,55 +171,66 @@
 
     <section class="view" id="view-ventas" role="tabpanel" aria-labelledby="tab-ventas" hidden>
       <div class="wrap">
-        <div class="title-row"><h1 class="title">Ventas del día</h1></div>
-        <p class="subtitle" id="vDate"></p>
-        <div class="caja-grid">
-          <div class="caja">
-            <div class="registradora">
-              <div class="display">
-                <span class="hero-l">Facturado hoy</span>
-                <span class="hero-v" id="hTotal"></span>
-                <span class="hero-d" id="hDelta"></span>
-              </div>
-              <dl class="teclas" id="vFacts"></dl>
-            </div>
-            <div class="ticket-wrap">
-              <section class="ticket ledger" aria-labelledby="ledgerT">
-                <div class="ticket-head">
-                  <p class="ticket-shop logo"><span class="logo-script">Stella Maris</span><span class="logo-sub">Joyas</span></p>
-                  <p>Av. Libertador San Martín 2038, Caseros</p>
-                  <p id="tkDate"></p>
-                </div>
-                <div class="ledger-top"><h2 class="h2" id="ledgerT">Movimientos</h2><span class="muted" id="ledgerCount"></span></div>
-                <div role="table" aria-labelledby="ledgerT">
-                  <div class="ledger-h" role="row"><span role="columnheader">Hora</span><span role="columnheader">Pieza</span><span role="columnheader">Material</span><span role="columnheader">Pago</span><span role="columnheader">Importe</span></div>
-                  <div id="ledger" role="rowgroup"></div>
-                </div>
-                <div class="ticket-total"><span>Total del día</span><b id="tkTotal"></b></div>
-                <p class="ticket-gracias">Gracias por su compra</p>
-              </section>
-            </div>
+        <div class="head v-head">
+          <div class="head-main">
+            <h1 class="title">Ventas</h1>
+            <p class="subtitle" id="vDate" aria-live="polite"></p>
           </div>
-          <aside class="v-side">
-            <section class="panel" aria-labelledby="wkT">
-              <h2 class="h3" id="wkT">Últimos 7 días</h2>
-              <p class="panel-sub" id="wkSub"></p>
+          <div class="v-tools">
+            <div class="dia" role="group" aria-label="Elegir el día">
+              <button type="button" class="dia-btn" id="vPrev" aria-label="Día anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6 8.5 12l6 6"/></svg></button>
+              <label class="dia-fecha"><span class="sr-only">Fecha</span><input type="date" id="vFecha" name="vFecha"></label>
+              <button type="button" class="dia-btn" id="vNext" aria-label="Día siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg></button>
+            </div>
+            <button type="button" class="btn btn-quiet" id="vHoy" hidden>Volver a hoy</button>
+            <button type="button" class="btn btn-quiet" id="vPrint"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3.5h10V9M7 17H5a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 5 9h14a1.5 1.5 0 0 1 1.5 1.5v5A1.5 1.5 0 0 1 19 17h-2"/><path d="M7 14h10v6.5H7z"/></svg>Imprimir cierre</button>
+          </div>
+        </div>
+
+        <div class="v-body" id="vBody">
+          <section class="kpis" aria-label="Resumen del día">
+            <div class="kpi kpi-main"><p class="kpi-l">Facturación</p><p class="kpi-v" id="hTotal"></p><p class="kpi-d" id="hDelta"></p></div>
+            <div class="kpi"><p class="kpi-l">Ventas</p><p class="kpi-v" id="kCount"></p><p class="kpi-d" id="kCountD"></p></div>
+            <div class="kpi"><p class="kpi-l">Ticket promedio</p><p class="kpi-v" id="kAvg"></p><p class="kpi-d" id="kAvgD"></p></div>
+            <div class="kpi"><p class="kpi-l">Mejor venta</p><p class="kpi-v" id="kBest"></p><p class="kpi-d" id="kBestN"></p></div>
+          </section>
+
+          <div class="v-grid">
+            <section class="panel v-week" aria-labelledby="wkT">
+              <div class="panel-head"><h2 class="h3" id="wkT">Últimos 7 días</h2><p class="panel-sub" id="wkSub"></p></div>
               <div class="week" id="week">
-                <div class="wk-plot" id="wkPlot" role="list" aria-label="Facturación por día"></div>
+                <div class="wk-plot" id="wkPlot" role="group" aria-label="Facturación de cada día"></div>
                 <div class="wk-axis" id="wkAxis" aria-hidden="true"></div>
                 <div class="tip" id="wkTip" aria-hidden="true"></div>
               </div>
               <details class="wk-table"><summary>Ver valores por día</summary><table><tbody id="wkRows"></tbody></table></details>
             </section>
-            <section class="panel" aria-labelledby="payT">
-              <h2 class="h3" id="payT">Medios de pago</h2>
+
+            <section class="panel v-pay" aria-labelledby="payT">
+              <div class="panel-head"><h2 class="h3" id="payT">Medios de pago</h2></div>
               <div class="mrows" id="byPay"></div>
             </section>
-            <section class="panel" aria-labelledby="matT">
-              <h2 class="h3" id="matT">Por material</h2>
-              <div class="mrows" id="byMat"></div>
+
+            <section class="panel v-mov" aria-labelledby="ledgerT">
+              <div class="panel-head"><h2 class="h3" id="ledgerT">Movimientos</h2><p class="panel-sub" id="ledgerCount"></p></div>
+              <div class="mov">
+                <div class="mov-h" aria-hidden="true"><span>Hora</span><span>Pieza</span><span>Pago</span><span>Importe</span></div>
+                <ul class="mov-list" id="ledger" aria-labelledby="ledgerT"></ul>
+                <p class="mov-total" id="movTotal" hidden></p>
+              </div>
             </section>
-          </aside>
+
+            <div class="v-side">
+              <section class="panel" aria-labelledby="matT">
+                <div class="panel-head"><h2 class="h3" id="matT">Por material</h2></div>
+                <div class="mrows" id="byMat"></div>
+              </section>
+              <section class="panel" aria-labelledby="tipoT">
+                <div class="panel-head"><h2 class="h3" id="tipoT">Por tipo de pieza</h2></div>
+                <div class="mrows" id="byTipo"></div>
+              </section>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -251,5 +253,6 @@
   </div>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="imprimir" id="imprimir" aria-hidden="true"></div>
 </body>
 </html>
