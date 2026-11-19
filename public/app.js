@@ -362,16 +362,19 @@ const vetas = c => { let h = 0; for (const ch of c) h = (h * 31 + ch.charCodeAt(
 const ICO_BUSCAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>';
 const ICO_GEMA = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4.5h10l3.5 4.5L12 20 3.5 9z"/><path d="M3.5 9h17M9.5 4.5 8 9l4 11 4-11-1.5-4.5"/></svg>';
 const hayFiltros = () => !!(st.mat || st.cat || st.q.trim());
-/* Cada pieza: la foto grande sobre mármol; abajo el nombre, el código, el material y el precio.
-   Las reservadas llevan la etiqueta sobre la foto y para quién están. */
+/* Cada pieza: la foto grande sobre mármol con su etiqueta de precio colgada (bordó si está reservada);
+   abajo el nombre, el código, el material y, si está reservada, para quién */
 function cardHTML(p, nueva){
   const res = p.s === 'reservado';
-  return `<button type="button" class="card${res ? ' is-res' : ''}${nueva ? ' is-new' : ''}" data-code="${p.c}">
-    <span class="c-img${p.img ? ' is-foto' : ''}" style="${vetas(p.c)}"><img src="${pic(p)}" alt="" width="300" height="300" loading="lazy" decoding="async">${res ? '<span class="c-tag">Reservada</span>' : ''}</span>
+  const nombre = `${p.n}, ${p.c}, ${p.ml}, ${money(p.p)}${res ? `, reservada${p.res ? ` para ${p.res.who}` : ''}` : ''}`;
+  return `<button type="button" class="card${res ? ' is-res' : ''}${nueva ? ' is-new' : ''}" data-code="${p.c}" aria-label="${esc(nb(nombre))}">
+    <span class="c-foto">
+      <span class="c-img${p.img ? ' is-foto' : ''}" style="${vetas(p.c)}"><img src="${pic(p)}" alt="" width="300" height="300" loading="lazy" decoding="async"><span class="c-luz"></span></span>
+      <span class="c-etq"><span class="c-etq-b">${res ? '<span class="c-etq-r">Reservada</span>' : ''}${money(p.p)}</span></span>
+    </span>
     <span class="c-body">
       <span class="c-name">${txt(p.n)}</span>
       <span class="c-meta"><span class="c-code">${p.c}</span><span>${p.ml}</span></span>
-      <span class="c-price">${money(p.p)}</span>
       ${res && p.res ? `<span class="c-res">Para ${esc(p.res.who)}</span>` : ''}
     </span>
   </button>`;
@@ -670,7 +673,7 @@ function ventaHTML(v, fecha){
   const anulable = fecha === HOY;
   return `<div class="cp">
     <h2 class="cp-t">Venta de ${v.c}</h2>
-    ${ticketHTML(v, fecha)}
+    <div class="cp-salida"><div class="cp-impresora" aria-hidden="true"></div><div class="cp-papel">${ticketHTML(v, fecha)}</div></div>
     <div class="cp-actions" id="cpActions">${cpBotones(anulable)}</div>
     ${anulable ? '' : '<p class="cp-nota">Las ventas de días anteriores ya no se pueden anular.</p>'}
   </div>`;
