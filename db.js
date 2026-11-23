@@ -71,6 +71,7 @@ async function crearEsquema(conn) {
       id            INT AUTO_INCREMENT PRIMARY KEY,
       usuario       VARCHAR(60)  NOT NULL UNIQUE,
       password_hash VARCHAR(100) NOT NULL,
+      rol           VARCHAR(20)  NOT NULL DEFAULT 'duena',
       creado_en     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`);
 
@@ -121,6 +122,7 @@ async function crearEsquema(conn) {
       precio       INT UNSIGNED NOT NULL,
       sena         INT UNSIGNED NOT NULL DEFAULT 0,
       medio_pago VARCHAR(20)  NOT NULL,
+      vendido_por  VARCHAR(20)  NULL,
       fecha      DATETIME NOT NULL,
       KEY idx_fecha (fecha),
       CONSTRAINT fk_venta_pieza FOREIGN KEY (pieza_id) REFERENCES piezas(id)
@@ -178,7 +180,13 @@ async function migrar(conn) {
     if (!tipo.variante) await conn.query(`ALTER TABLE ${tabla} ADD COLUMN variante VARCHAR(30) NULL AFTER subcategoria`);
     /* Los colgantes ahora se llaman dijes */
     await conn.query(`UPDATE ${tabla} SET categoria = 'dije' WHERE categoria = 'colgante'`);
+    /* Cada venta guarda qué cuenta la hizo (la dueña o el mostrador) */
+    if (tabla === 'ventas' && !tipo.vendido_por) await conn.query('ALTER TABLE ventas ADD COLUMN vendido_por VARCHAR(20) NULL AFTER medio_pago');
   }
+  /* Además de la cuenta de la dueña puede haber una del mostrador, que solo vende */
+  const [cu] = await conn.query(
+    "SELECT COLUMN_NAME AS nombre FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usuarios'");
+  if (!cu.some(c => c.nombre === 'rol')) await conn.query("ALTER TABLE usuarios ADD COLUMN rol VARCHAR(20) NOT NULL DEFAULT 'duena' AFTER password_hash");
 }
 
 async function leerAjuste(conn, clave) {
@@ -211,26 +219,32 @@ async function siguienteCodigo(conn, material) {
   return `${MATERIALES[material].pre}-${String(n).padStart(3, '0')}`;
 }
 
-/* Una sola cuenta para todo el local. Usuario y contraseña salen de las variables
-   LOGIN_USUARIO y LOGIN_PASSWORD: cambiar la variable y reiniciar cambia la contraseña
-   (y cierra las sesiones abiertas). Devuelve la "versión" de la contraseña para los tokens. */
-async function asegurarCuenta(conn) {
+/* Las cuentas del local. La de la dueña ve y hace todo; la del mostrador solo vende y reserva.
+   Usuario y contraseña salen de las variables (LOGIN_* y MOSTRADOR_*): cambiar una y reiniciar
+   cambia esa contraseña y cierra las sesiones abiertas de esa cuenta. Devuelve, por cuenta,
+   el usuario y la "versión" de su contraseña, que va dentro de cada sesión. */
+async function asegurarCuentas(conn) {
+  const duena = await asegurarDuena(conn);
+  const mostrador = await asegurarMostrador(conn, duena && duena.usuario);
+  return { duena, mostrador };
+}
+async function asegurarDuena(conn) {
   const usuario = String(process.env.LOGIN_USUARIO || 'stellamaris').trim().toLowerCase();
   let clave = process.env.LOGIN_PASSWORD || '';
-  const [[actual]] = await conn.query('SELECT id, usuario, password_hash FROM usuarios ORDER BY id LIMIT 1');
+  const [[actual]] = await conn.query("SELECT id, usuario, password_hash FROM usuarios WHERE rol = 'duena' ORDER BY id LIMIT 1");
   if (!actual) {
     if (!clave) {
       if (PROD) {
         console.error('✗ Falta la variable LOGIN_PASSWORD: no se creó la cuenta del local. Definila y reiniciá.');
-        return '';
+        return null;
       }
       clave = 'joyas2026';
       console.warn('! Sin LOGIN_PASSWORD: se creó la cuenta con la clave de prueba "joyas2026". Cambiala antes de usar el sistema en serio.');
     }
     const hash = await bcrypt.hash(clave, 10);
-    await conn.query('INSERT INTO usuarios (usuario, password_hash) VALUES (?, ?)', [usuario, hash]);
+    await conn.query("INSERT INTO usuarios (usuario, password_hash, rol) VALUES (?, ?, 'duena')", [usuario, hash]);
     console.log(`✓ Cuenta del local creada: ${usuario}`);
-    return version(hash);
+    return { usuario, version: version(hash) };
   }
   let hash = actual.password_hash;
   if (clave && !(await bcrypt.compare(clave, hash))) {
@@ -240,7 +254,38 @@ async function asegurarCuenta(conn) {
   if (usuario !== actual.usuario || hash !== actual.password_hash) {
     await conn.query('UPDATE usuarios SET usuario = ?, password_hash = ? WHERE id = ?', [usuario, hash, actual.id]);
   }
-  return version(hash);
+  return { usuario, version: version(hash) };
+}
+/* La cuenta del mostrador existe solo si está la variable MOSTRADOR_PASSWORD;
+   si se quita la variable, la cuenta se cierra al reiniciar. */
+async function asegurarMostrador(conn, usuarioDuena) {
+  const usuario = String(process.env.MOSTRADOR_USUARIO || 'mostrador').trim().toLowerCase();
+  const clave = process.env.MOSTRADOR_PASSWORD || '';
+  const [[actual]] = await conn.query("SELECT id, usuario, password_hash FROM usuarios WHERE rol = 'mostrador' ORDER BY id LIMIT 1");
+  const cerrar = async motivo => {
+    if (actual) { await conn.query('DELETE FROM usuarios WHERE id = ?', [actual.id]); console.log(`› ${motivo}: se cerró la cuenta del mostrador.`); }
+    return null;
+  };
+  if (!clave) return cerrar('Sin MOSTRADOR_PASSWORD');
+  if (!usuario || usuario === usuarioDuena) {
+    console.error('✗ MOSTRADOR_USUARIO tiene que ser distinto del usuario de la dueña.');
+    return cerrar('Usuario del mostrador repetido');
+  }
+  if (!actual) {
+    const hash = await bcrypt.hash(clave, 10);
+    await conn.query("INSERT INTO usuarios (usuario, password_hash, rol) VALUES (?, ?, 'mostrador')", [usuario, hash]);
+    console.log(`✓ Cuenta del mostrador creada: ${usuario}`);
+    return { usuario, version: version(hash) };
+  }
+  let hash = actual.password_hash;
+  if (!(await bcrypt.compare(clave, hash))) {
+    hash = await bcrypt.hash(clave, 10);
+    console.log('› La contraseña del mostrador cambió (MOSTRADOR_PASSWORD): se actualizó y se cerraron sus sesiones.');
+  }
+  if (usuario !== actual.usuario || hash !== actual.password_hash) {
+    await conn.query('UPDATE usuarios SET usuario = ?, password_hash = ? WHERE id = ?', [usuario, hash, actual.id]);
+  }
+  return { usuario, version: version(hash) };
 }
 const version = hash => crypto.createHash('sha256').update(hash).digest('hex').slice(0, 16);
 
@@ -257,5 +302,5 @@ async function purgar(conn) {
 module.exports = {
   pool, PROD, TZ, MATERIALES, CATEGORIAS, PAGOS, nombreAuto,
   asegurarBase, crearEsquema, migrar, leerAjuste, guardarAjuste,
-  sincronizarContadores, siguiente, siguienteCodigo, asegurarCuenta, purgar,
+  sincronizarContadores, siguiente, siguienteCodigo, asegurarCuentas, purgar,
 };

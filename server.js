@@ -4,7 +4,8 @@
  * Av. Libertador San Martín 2038, Caseros
  * ------------------------------------------------------------
  * Servidor: API con Express, base MySQL, ingreso con JWT + bcrypt
- * (una sola cuenta para todo el local) y fotos guardadas en la base.
+ * (la cuenta de la dueña y, si se define, la del mostrador, que solo vende)
+ * y fotos guardadas en la base.
  * La página (carpeta public/) se sirve desde acá mismo.
  *
  * Funciona con XAMPP (variables DB_*) y con Railway (MYSQL_URL o MYSQL*).
@@ -18,7 +19,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const {
   pool, PROD, MATERIALES, CATEGORIAS, PAGOS, nombreAuto,
-  asegurarBase, crearEsquema, migrar, sincronizarContadores, siguiente, siguienteCodigo, asegurarCuenta, purgar,
+  asegurarBase, crearEsquema, migrar, sincronizarContadores, siguiente, siguienteCodigo, asegurarCuentas, purgar,
 } = require('./db');
 const { prepararEjemplo } = require('./ejemplo');
 
@@ -28,7 +29,9 @@ if (!SECRET) {
   SECRET = crypto.randomBytes(32).toString('hex');
   console.warn('! Falta JWT_SECRET: se usa una clave temporal y las sesiones se cierran cada vez que reinicia el servidor.');
 }
-let VERSION_CLAVE = '';   // cambia cuando cambia la contraseña: invalida las sesiones viejas
+/* Cuentas que pueden entrar: usuario → { rol, version }. La versión cambia cuando cambia
+   la contraseña de esa cuenta, y así se cierran sus sesiones viejas. */
+let CUENTAS = new Map();
 
 /* ------------------------------------------------------------
  * Arranque de la base: tablas, cuenta del local y contadores
@@ -40,7 +43,10 @@ async function prepararBase() {
     console.log('› Verificando la base de datos…');
     await crearEsquema(conn);
     await migrar(conn);
-    VERSION_CLAVE = await asegurarCuenta(conn);
+    const { duena, mostrador } = await asegurarCuentas(conn);
+    CUENTAS = new Map();
+    if (duena) CUENTAS.set(duena.usuario, { rol: 'duena', version: duena.version });
+    if (mostrador) CUENTAS.set(mostrador.usuario, { rol: 'mostrador', version: mostrador.version });
     if (process.env.DATOS_EJEMPLO === 'true') {
       const hecho = await prepararEjemplo(conn);
       if (hecho === 'cargados') console.log('› Se cargaron los datos de ejemplo (DATOS_EJEMPLO=true).');
@@ -134,12 +140,13 @@ const piezaJSON = r => ({
 });
 
 const SQL_VENTA = `
-  SELECT v.id, v.codigo, v.nombre, v.material, v.categoria, v.subcategoria, v.variante, v.precio, v.medio_pago,
+  SELECT v.id, v.codigo, v.nombre, v.material, v.categoria, v.subcategoria, v.variante, v.precio, v.medio_pago, v.vendido_por,
          DATE_FORMAT(v.fecha, '%H:%i') AS hora, f.clave AS foto
     FROM ventas v JOIN piezas p ON p.id = v.pieza_id LEFT JOIN fotos f ON f.id = p.foto_id`;
 const ventaJSON = r => ({
   id: r.id, codigo: r.codigo, nombre: r.nombre, material: r.material, ...categoriasJSON(r),
   precio: r.precio, medio: r.medio_pago, hora: r.hora, foto: urlFoto(r.foto),
+  vendidoPor: r.vendido_por || 'duena',   // las ventas de antes de que existiera el mostrador son de la dueña
 });
 
 const SQL_PENDIENTE = `
@@ -251,16 +258,17 @@ app.post('/api/login', ruta(async (req, res) => {
   if (!usuario || !password) throw new Aviso(400, 'Completá el usuario y la contraseña.');
   const [[u]] = await pool.query('SELECT id, usuario, password_hash FROM usuarios WHERE usuario = ?', [usuario]);
   const ok = await bcrypt.compare(password, u ? u.password_hash : HASH_VACIO);
-  if (!u || !ok) {
-    const cuenta = e && e.hasta > ahora ? e : { n: 0, hasta: ahora + VENTANA };
-    cuenta.n += 1;
-    intentos.set(ip, cuenta);
+  const cuenta = u && CUENTAS.get(u.usuario);
+  if (!u || !ok || !cuenta) {
+    const fallos = e && e.hasta > ahora ? e : { n: 0, hasta: ahora + VENTANA };
+    fallos.n += 1;
+    intentos.set(ip, fallos);
     throw new Aviso(401, 'El usuario o la contraseña no coinciden.');
   }
   intentos.delete(ip);
   const recordar = req.body?.recordar === true;
-  const token = jwt.sign({ u: u.usuario, v: VERSION_CLAVE }, SECRET, { expiresIn: recordar ? '30d' : '12h' });
-  res.json({ token, usuario: u.usuario });
+  const token = jwt.sign({ u: u.usuario, v: cuenta.version }, SECRET, { expiresIn: recordar ? '30d' : '12h' });
+  res.json({ token, usuario: u.usuario, rol: cuenta.rol });
 }));
 
 function requireAuth(req, res, next) {
@@ -269,12 +277,19 @@ function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Ingresá para continuar.' });
   try {
     const datos = jwt.verify(token, SECRET);
-    if (!VERSION_CLAVE || datos.v !== VERSION_CLAVE) throw new Error('version');
+    const cuenta = CUENTAS.get(datos.u);
+    if (!cuenta || datos.v !== cuenta.version) throw new Error('version');
     req.usuario = datos.u;
-    next();
+    req.rol = cuenta.rol;
   } catch {
-    res.status(401).json({ error: 'Tu sesión venció. Ingresá de nuevo.' });
+    return res.status(401).json({ error: 'Tu sesión venció. Ingresá de nuevo.' });
   }
+  next();
+}
+/* Lo que no es vender: ver la facturación, cambiar el stock o cargar piezas nuevas */
+function soloDuena(req, res, next) {
+  if (req.rol === 'duena') return next();
+  res.status(403).json({ error: 'Con la cuenta del mostrador solo se puede vender y reservar.' });
 }
 
 /* ------------------------------------------------------------
@@ -283,6 +298,11 @@ function requireAuth(req, res, next) {
 app.get('/api/estado', requireAuth, ruta(async (req, res) => {
   const [[{ hoy }]] = await pool.query("SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS hoy");
   const [piezas] = await pool.query(`${SQL_PIEZA} WHERE p.estado <> 'vendido' ORDER BY p.id`);
+  /* El mostrador ve el stock para vender, pero no las ventas ni las fotos por completar */
+  if (req.rol !== 'duena') {
+    return res.json({ hoy, usuario: req.usuario, rol: req.rol, piezas: piezas.map(piezaJSON),
+      pendientes: [], ventasHoy: [], semana: [], dias: [], ultimos: {} });
+  }
   const [pendientes] = await pool.query(`${SQL_PENDIENTE} WHERE q.borrada_en IS NULL ORDER BY q.id`);
   const [ventas] = await pool.query(`${SQL_VENTA} WHERE v.fecha >= CURDATE() AND v.fecha < CURDATE() + INTERVAL 1 DAY ORDER BY v.fecha, v.id`);
   const dias = await semanaHasta(hoy);
@@ -291,6 +311,8 @@ app.get('/api/estado', requireAuth, ruta(async (req, res) => {
   cont.forEach(c => { if (MATERIALES[c.nombre]) ultimos[c.nombre] = Number(c.ultimo); });
   res.json({
     hoy,
+    usuario: req.usuario,
+    rol: req.rol,
     piezas: piezas.map(piezaJSON),
     pendientes: pendientes.map(pendienteJSON),
     ventasHoy: ventas.map(ventaJSON),
@@ -315,7 +337,7 @@ async function semanaHasta(fecha) {
 }
 
 /* Las ventas de un día cualquiera, para el tablero de Ventas */
-app.get('/api/ventas/dia/:fecha', requireAuth, ruta(async (req, res) => {
+app.get('/api/ventas/dia/:fecha', requireAuth, soloDuena, ruta(async (req, res) => {
   const fecha = fechaValida(req.params.fecha);
   if (!fecha) throw new Aviso(400, 'La fecha no es válida.');
   const [ventas] = await pool.query(
@@ -333,9 +355,9 @@ app.post('/api/piezas/:codigo/vender', requireAuth, ruta(async (req, res) => {
     const p = await piezaEnLocal(conn, req.params.codigo);
     const sena = p.estado === 'reservado' ? Math.min(p.reserva_sena || 0, p.precio) : 0;
     const [r] = await conn.query(
-      `INSERT INTO ventas (pieza_id, codigo, nombre, material, categoria, subcategoria, variante, precio, sena, medio_pago, fecha)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [p.id, p.codigo, p.nombre, p.material, p.categoria, p.subcategoria, p.variante, p.precio, sena, medio]);
+      `INSERT INTO ventas (pieza_id, codigo, nombre, material, categoria, subcategoria, variante, precio, sena, medio_pago, vendido_por, fecha)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [p.id, p.codigo, p.nombre, p.material, p.categoria, p.subcategoria, p.variante, p.precio, sena, medio, req.rol]);
     await conn.query("UPDATE piezas SET estado = 'vendido' WHERE id = ?", [p.id]);
     return r.insertId;
   });
@@ -343,13 +365,21 @@ app.post('/api/piezas/:codigo/vender', requireAuth, ruta(async (req, res) => {
   res.status(201).json({ venta: ventaJSON(v) });
 }));
 
-/* Anular una venta del día: la pieza vuelve al stock como estaba (con su reserva, si tenía) */
+/* Anular una venta del día: la pieza vuelve al stock como estaba (con su reserva, si tenía).
+   El mostrador solo puede deshacer una venta suya enseguida (por si se equivocó); después, la dueña. */
+const MINUTOS_MOSTRADOR = 5;
 app.post('/api/ventas/:id/deshacer', requireAuth, ruta(async (req, res) => {
   const id = entero(req.params.id, { min: 1 });
   if (!id) throw new Aviso(404, 'No se encontró la venta.');
   const codigo = await enTransaccion(async conn => {
-    const [[v]] = await conn.query('SELECT id, pieza_id, codigo, fecha >= CURDATE() AS de_hoy FROM ventas WHERE id = ? FOR UPDATE', [id]);
+    const [[v]] = await conn.query(
+      `SELECT id, pieza_id, codigo, vendido_por, fecha >= CURDATE() AS de_hoy, fecha >= NOW() - INTERVAL ${MINUTOS_MOSTRADOR} MINUTE AS reciente
+         FROM ventas WHERE id = ? FOR UPDATE`, [id]);
     if (!v) throw new Aviso(404, 'No se encontró la venta.');
+    if (req.rol !== 'duena') {
+      if (v.vendido_por !== req.rol) throw new Aviso(403, 'Desde el mostrador solo se pueden deshacer las ventas hechas en el mostrador.');
+      if (!Number(v.reciente)) throw new Aviso(403, `Pasaron más de ${MINUTOS_MOSTRADOR} minutos: para anular esta venta, avisale a la dueña.`);
+    }
     if (!Number(v.de_hoy)) throw new Aviso(409, 'Solo se pueden anular las ventas del día.');
     await conn.query(
       `UPDATE piezas SET estado = IF(reserva_cliente IS NULL, 'disponible', 'reservado') WHERE id = ? AND estado = 'vendido'`,
@@ -386,7 +416,7 @@ app.delete('/api/piezas/:codigo/reserva', requireAuth, ruta(async (req, res) => 
   res.json({ pieza: await leerPieza(pool, req.params.codigo) });
 }));
 
-app.patch('/api/piezas/:codigo', requireAuth, ruta(async (req, res) => {
+app.patch('/api/piezas/:codigo', requireAuth, soloDuena, ruta(async (req, res) => {
   const precio = entero(req.body?.precio, { min: 1 });
   if (!precio) throw new Aviso(400, 'Poné un precio mayor a cero para guardar.');
   const { c } = categoriaDe(req.body, { completa: true });
@@ -401,7 +431,7 @@ app.patch('/api/piezas/:codigo', requireAuth, ruta(async (req, res) => {
   res.json({ pieza: await leerPieza(pool, req.params.codigo) });
 }));
 
-app.put('/api/piezas/:codigo/foto', requireAuth, recibirImagen, ruta(async (req, res) => {
+app.put('/api/piezas/:codigo/foto', requireAuth, soloDuena, recibirImagen, ruta(async (req, res) => {
   await enTransaccion(async conn => {
     const p = await piezaEnLocal(conn, req.params.codigo);
     const fotoId = await guardarFoto(conn, req.body);
@@ -414,7 +444,7 @@ app.put('/api/piezas/:codigo/foto', requireAuth, recibirImagen, ruta(async (req,
 /* ------------------------------------------------------------
  * Fotos por completar
  * ---------------------------------------------------------- */
-app.post('/api/pendientes', requireAuth, recibirImagen, ruta(async (req, res) => {
+app.post('/api/pendientes', requireAuth, soloDuena, recibirImagen, ruta(async (req, res) => {
   const material = req.query.material ? String(req.query.material) : null;
   if (material && !MATERIALES[material]) throw new Aviso(400, 'Material inválido.');
   const { c } = categoriaDe(req.query);
@@ -431,7 +461,7 @@ app.post('/api/pendientes', requireAuth, recibirImagen, ruta(async (req, res) =>
 
 /* Guarda lo que se completó; si ya tiene material, tipo de pieza completo y precio,
    pasa al stock con su código */
-app.patch('/api/pendientes/:id', requireAuth, ruta(async (req, res) => {
+app.patch('/api/pendientes/:id', requireAuth, soloDuena, ruta(async (req, res) => {
   const id = entero(req.params.id, { min: 1 });
   if (!id) throw new Aviso(404, 'No se encontró la foto.');
   const b = req.body || {};
@@ -464,14 +494,14 @@ app.patch('/api/pendientes/:id', requireAuth, ruta(async (req, res) => {
 }));
 
 /* Borrar deja la foto apartada dos días, por si se toca "Deshacer" */
-app.delete('/api/pendientes/:id', requireAuth, ruta(async (req, res) => {
+app.delete('/api/pendientes/:id', requireAuth, soloDuena, ruta(async (req, res) => {
   const id = entero(req.params.id, { min: 1 });
   const [r] = await pool.query('UPDATE pendientes SET borrada_en = NOW() WHERE id = ? AND borrada_en IS NULL', [id || 0]);
   if (!r.affectedRows) throw new Aviso(404, 'No se encontró la foto.');
   res.json({ ok: true });
 }));
 
-app.post('/api/pendientes/:id/restaurar', requireAuth, ruta(async (req, res) => {
+app.post('/api/pendientes/:id/restaurar', requireAuth, soloDuena, ruta(async (req, res) => {
   const id = entero(req.params.id, { min: 1 });
   const [r] = await pool.query('UPDATE pendientes SET borrada_en = NULL WHERE id = ? AND borrada_en IS NOT NULL', [id || 0]);
   if (!r.affectedRows) throw new Aviso(404, 'No se pudo recuperar la foto.');

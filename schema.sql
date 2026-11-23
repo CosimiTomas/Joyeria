@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS `usuarios` (
   `id` int NOT NULL AUTO_INCREMENT,
   `usuario` varchar(60) COLLATE utf8mb4_unicode_ci NOT NULL,
   `password_hash` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `rol` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'duena',
   `creado_en` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `usuario` (`usuario`)
@@ -90,6 +91,7 @@ CREATE TABLE IF NOT EXISTS `ventas` (
   `precio` int unsigned NOT NULL,
   `sena` int unsigned NOT NULL DEFAULT '0',
   `medio_pago` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `vendido_por` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `fecha` datetime NOT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_fecha` (`fecha`),

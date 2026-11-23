@@ -29,12 +29,14 @@ MYSQL_URL=${{ MySQL.MYSQL_URL }}
 JWT_SECRET=escribí-acá-un-texto-largo-y-al-azar
 LOGIN_USUARIO=stellamaris
 LOGIN_PASSWORD=la-clave-que-van-a-usar-en-el-local
+MOSTRADOR_PASSWORD=otra-clave-para-el-mostrador
 DATOS_EJEMPLO=true
 ```
 
 - `MYSQL_URL` conecta con la base. Si tu servicio MySQL tiene otro nombre, cambiá `MySQL` por ese nombre.
 - `JWT_SECRET`: cualquier texto largo (por ejemplo 40 letras y números al azar). Si falta, las sesiones se cierran cada vez que Railway reinicia.
-- `LOGIN_PASSWORD`: es la clave de ingreso. **Sin esta variable no se crea la cuenta** y nadie puede entrar (a propósito, para que no quede una clave de prueba).
+- `LOGIN_PASSWORD`: es la clave de ingreso de la dueña. **Sin esta variable no se crea la cuenta** y nadie puede entrar (a propósito, para que no quede una clave de prueba).
+- `MOSTRADOR_PASSWORD` (opcional): crea la cuenta **mostrador**, que solo vende y reserva. Se entra con el usuario `mostrador` y esta clave (para otro nombre: `MOSTRADOR_USUARIO`). Si se borra la variable, la cuenta se cierra.
 - `DATOS_EJEMPLO=true` carga 34 piezas y ventas de prueba si la base está vacía, para mostrarlo. Para el uso real, **no la pongas**. Si ya la usaste para una demo y querés empezar limpio: borrá la variable, eliminá el servicio MySQL, creá uno nuevo (paso 3) y volvé a desplegar.
 
 Guardá → Railway vuelve a desplegar solo.
@@ -55,7 +57,7 @@ Settings → **Healthcheck Path**: `/api/health`.
 
 ## Cambiar la clave
 
-Cambiá `LOGIN_PASSWORD` en Variables. Al reiniciar, la clave nueva queda activa y **todas las sesiones abiertas se cierran**.
+Cambiá `LOGIN_PASSWORD` (dueña) o `MOSTRADOR_PASSWORD` (mostrador) en Variables. Al reiniciar, la clave nueva queda activa y **se cierran las sesiones abiertas de esa cuenta** (las de la otra siguen).
 
 ## Si algo falla
 

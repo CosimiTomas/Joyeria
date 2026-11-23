@@ -37,6 +37,8 @@ let P = [];                    /* piezas en el local (disponibles y reservadas) 
 let SALES = [];                /* ventas de hoy, en el orden en que se hicieron */
 let PAST = [];                 /* los seis días anteriores a hoy {fecha, total, cantidad}, del más viejo a ayer */
 let HOY = '';                  /* la fecha de hoy según el servidor (AAAA-MM-DD) */
+let ROL = 'duena';             /* 'duena' ve y hace todo; 'mostrador' solo vende y reserva */
+const esMostrador = () => ROL === 'mostrador';
 let PENDING = [];              /* fotos por completar */
 let ULT = {};                  /* último número de código usado por material */
 let TOKEN = null;              /* sesión (JWT) que da el servidor al ingresar */
@@ -266,7 +268,7 @@ const deCat = r => ({cat:r.categoria || null, sub:r.subcategoria || null, vari:r
 const conBusqueda = x => Object.assign(x, {hay:norm(`${x.n} ${x.c} ${CATS.texto(catDe(x), ' ')}`)});
 const dePieza = r => conBusqueda({id:r.id, c:r.codigo, n:r.nombre, m:r.material, ...deCat(r), p:r.precio, s:r.estado, det:r.detalle || '', d:r.dias, o:r.id, ml:MAT[r.material].full, img:r.foto || null,
   res:r.reserva ? {who:r.reserva.cliente, sena:r.reserva.sena || 0, d:r.reserva.dias} : null});
-const deVenta = r => ({id:r.id, c:r.codigo, n:r.nombre, m:r.material, ...deCat(r), p:r.precio, pay:r.medio, t:r.hora, img:r.foto || null});
+const deVenta = r => ({id:r.id, c:r.codigo, n:r.nombre, m:r.material, ...deCat(r), p:r.precio, pay:r.medio, t:r.hora, img:r.foto || null, por:r.vendidoPor || 'duena'});
 const dePendiente = r => ({id:r.id, num:r.numero, img:r.foto, m:r.material || null, ...deCat(r), p:r.precio || 0, n:r.nombre || '', det:r.detalle || ''});
 async function loadState(){
   const s = await api('/estado');
@@ -274,6 +276,8 @@ async function loadState(){
   SALES = s.ventasHoy.map(deVenta);
   PENDING = s.pendientes.map(dePendiente);
   HOY = s.hoy || isoDe(TODAY);
+  ROL = s.rol === 'mostrador' ? 'mostrador' : 'duena';
+  aplicarRol();
   PAST = Array.from({length:6}, (_, i) => {
     const f = sumarDias(HOY, i - 6);
     return (s.dias || []).find(d => d.fecha === f) || {fecha:f, total:0, cantidad:0};
@@ -314,7 +318,20 @@ const autoName = x => `${CATS.nombre(catDe(x))} de ${MAT[x.m].name.toLowerCase()
 function renderFacts(){
   const reserved = P.filter(p => p.s === 'reservado').length;
   const value = P.reduce((s, p) => s + p.p, 0);
-  $('#facts').innerHTML = `<div><dt>Piezas en stock</dt><dd>${P.length}</dd></div><div class="st-res"><dt>${reserved === 1 ? 'Reservada' : 'Reservadas'}</dt><dd>${reserved}</dd></div><div><dt>Valor del stock</dt><dd>${money(value)}</dd></div>`;
+  $('#facts').innerHTML = `<div><dt>Piezas en stock</dt><dd>${P.length}</dd></div><div class="st-res"><dt>${reserved === 1 ? 'Reservada' : 'Reservadas'}</dt><dd>${reserved}</dd></div>` +
+    (esMostrador() ? '' : `<div><dt>Valor del stock</dt><dd>${money(value)}</dd></div>`);
+}
+/* La cuenta del mostrador ve solo el stock, para vender y reservar: sin Por completar, sin Ventas,
+   sin subir fotos ni el valor del stock. El servidor lo controla igual; acá solo no se muestra. */
+function aplicarRol(){
+  const m = esMostrador();
+  document.documentElement.classList.toggle('mostrador', m);
+  $('.nav').hidden = m;
+  $('#tab-pend').hidden = m;
+  $('#tab-ventas').hidden = m;
+  $('#btnAdd').hidden = m;
+  $('#cuenta').hidden = !m;
+  if (m && $('#view-stock').hidden) setView('stock');
 }
 /* Los botones de material se crean una vez y después solo cambian sus números,
    así la burbuja puede deslizarse de uno a otro */
@@ -559,9 +576,9 @@ function renderVentas(){
   /* Movimientos: la más nueva arriba; cada una abre su comprobante */
   $('#ledgerCount').textContent = conteo(n);
   $('.mov-h').hidden = !n;
-  $('#ledger').innerHTML = n ? [...ventas].reverse().map(v => `<li><button type="button" class="mov-row${v.fresh ? ' is-new' : ''}" data-venta="${v.id}" aria-label="${v.t}, ${esc(v.n)}, ${v.c}, ${v.pay}, ${money(v.p)}. Ver comprobante">
+  $('#ledger').innerHTML = n ? [...ventas].reverse().map(v => `<li><button type="button" class="mov-row${v.fresh ? ' is-new' : ''}" data-venta="${v.id}" aria-label="${v.t}, ${esc(v.n)}, ${v.c}, ${v.pay}, ${money(v.p)}${v.por === 'mostrador' ? ', vendida en el mostrador' : ''}. Ver comprobante">
       <span class="m-time">${v.t}</span>
-      <span class="m-piece"><img class="m-thumb${v.img ? ' is-foto' : ''}" src="${pic(v)}" alt="" width="46" height="46" loading="lazy" decoding="async"><span class="m-txt"><span class="m-name">${txt(v.n)}</span><span class="m-sub"><span>${v.c}</span><span class="m-mobile">${v.t}</span><span class="m-mobile">${v.pay}</span><span class="m-desk">${MAT[v.m].full}</span></span></span></span>
+      <span class="m-piece"><img class="m-thumb${v.img ? ' is-foto' : ''}" src="${pic(v)}" alt="" width="46" height="46" loading="lazy" decoding="async"><span class="m-txt"><span class="m-name">${txt(v.n)}</span><span class="m-sub"><span>${v.c}</span><span class="m-mobile">${v.t}</span><span class="m-mobile">${v.pay}</span><span class="m-desk">${MAT[v.m].full}</span>${v.por === 'mostrador' ? '<span class="m-por">Mostrador</span>' : ''}</span></span></span>
       <span class="m-pay">${v.pay}</span>
       <span class="m-amt">${money(v.p)}</span>
     </button></li>`).join('')
@@ -654,7 +671,7 @@ function cierreHTML(d){
   return `<div class="tk">${tkHead()}
     <p class="tk-t">Cierre del día</p>
     <dl class="tk-dl"><div><dt>Fecha</dt><dd>${fechaCorta(d.fecha)}</dd></div><div><dt>Ventas</dt><dd>${d.ventas.length}</dd></div></dl>
-    <div class="tk-items">${d.ventas.length ? d.ventas.map(v => `<div class="tk-it"><b>${v.t} ${v.c}</b><span class="tk-a">${money(v.p)}</span><span class="tk-q">${txt(v.n)}, ${v.pay}</span></div>`).join('') : '<p class="tk-q">No hubo ventas.</p>'}</div>
+    <div class="tk-items">${d.ventas.length ? d.ventas.map(v => `<div class="tk-it"><b>${v.t} ${v.c}</b><span class="tk-a">${money(v.p)}</span><span class="tk-q">${txt(v.n)}, ${v.pay}${v.por === 'mostrador' ? ', mostrador' : ''}</span></div>`).join('') : '<p class="tk-q">No hubo ventas.</p>'}</div>
     ${pagos.length ? `<div class="tk-sums">${pagos.map(([m, s, k]) => `<div><span>${m} (${k})</span><span>${money(s)}</span></div>`).join('')}</div>` : ''}
     <div class="tk-total"><span>Total</span><span>${money(total)}</span></div>
     <p class="tk-gracias">Impreso el ${fechaCorta(isoDe(ahora))} a las ${String(ahora.getHours()).padStart(2, '0')}:${String(ahora.getMinutes()).padStart(2, '0')}</p>
@@ -670,12 +687,12 @@ function imprimir(html){
 }
 const cpBotones = anulable => `<button type="button" class="btn btn-quiet" data-act="cp-print">${ICO_IMPRIMIR}Imprimir</button>${anulable ? '<button type="button" class="btn btn-danger" data-act="cp-void">Anular venta</button>' : ''}`;
 function ventaHTML(v, fecha){
-  const anulable = fecha === HOY;
+  const anulable = fecha === HOY && !esMostrador();
   return `<div class="cp">
     <h2 class="cp-t">Venta de ${v.c}</h2>
     <div class="cp-salida"><div class="cp-impresora" aria-hidden="true"></div><div class="cp-papel">${ticketHTML(v, fecha)}</div></div>
     <div class="cp-actions" id="cpActions">${cpBotones(anulable)}</div>
-    ${anulable ? '' : '<p class="cp-nota">Las ventas de días anteriores ya no se pueden anular.</p>'}
+    ${anulable ? '' : `<p class="cp-nota">${esMostrador() ? 'Para anular una venta, avisale a la dueña.' : 'Las ventas de días anteriores ya no se pueden anular.'}</p>`}
   </div>`;
 }
 function openVenta(id){
@@ -691,7 +708,7 @@ function cpConfirmar(){
   $('#cpActions [data-act="cp-void-no"]').focus({preventScroll:true});
 }
 function cpVolver(){
-  $('#cpActions').innerHTML = cpBotones(abierta.fecha === HOY);
+  $('#cpActions').innerHTML = cpBotones(abierta.fecha === HOY && !esMostrador());
   $('#cpActions [data-act="cp-void"]')?.focus({preventScroll:true});
 }
 async function anular(btn){
@@ -724,6 +741,7 @@ function placeBubbles(instant){
   placeBubble($('#mats'), $('#mats .mat[aria-pressed="true"]'), instant);
 }
 function setView(v){
+  if (esMostrador()) v = 'stock';
   const venia = $('#tab-ventas').getAttribute('aria-selected') === 'true';
   if (v === 'ventas' && !venia && (vt.fecha !== HOY || vt.destino)) irA(HOY);
   document.querySelectorAll('.tab').forEach(t => {
@@ -843,8 +861,8 @@ grab.addEventListener('pointercancel', endDrag);
 /* Ficha de una pieza del stock */
 const actionsHTML = p => `<button type="button" class="btn btn-primary btn-block" data-act="sell">Registrar venta</button>
   <button type="button" class="btn btn-quiet btn-block" data-act="${p.s === 'reservado' ? 'unreserve' : 'reserve'}">${p.s === 'reservado' ? 'Quitar reserva' : 'Reservar'}</button>
-  <div class="pd-links"><button type="button" class="link" data-act="edit">Editar datos</button><label class="link" for="pdPhoto">${p.img ? 'Cambiar foto' : 'Subir foto'}</label></div>
-  <input type="file" id="pdPhoto" name="pdPhoto" class="sr-only" accept="image/*">`;
+  ${esMostrador() ? '' : `<div class="pd-links"><button type="button" class="link" data-act="edit">Editar datos</button><label class="link" for="pdPhoto">${p.img ? 'Cambiar foto' : 'Subir foto'}</label></div>
+  <input type="file" id="pdPhoto" name="pdPhoto" class="sr-only" accept="image/*">`}`;
 const sellHTML = p => `${p.s === 'reservado' && p.res && p.res.sena ? `<p class="tipbox">${esc(p.res.who)} dejó una seña de ${money(p.res.sena)}. Resta cobrar ${money(Math.max(0, p.p - p.res.sena))}.</p>` : ''}<fieldset class="pay"><legend>Medio de pago</legend><div class="opts">${PAYS.map((m, i) => `<label class="opt"><input type="radio" name="pay" id="pay-${i}" value="${m}"${i ? '' : ' checked'}><span>${m}</span></label>`).join('')}</div></fieldset>
   <button type="button" class="btn btn-primary btn-block" data-act="confirm">Confirmar venta por ${money(p.p)}</button>
   <button type="button" class="btn btn-text" data-act="back">Volver</button>`;
@@ -961,7 +979,7 @@ async function sell(p, pay, btn){
       renderStock(); renderVentas(); renderPend();
       toast(`Venta de ${p.c} anulada`);
     }],
-    ['Ver ventas', () => setView('ventas')]
+    esMostrador() ? ['Comprobante', () => openVenta(sale.id)] : ['Ver ventas', () => setView('ventas')]
   ]);
 }
 async function changePhoto(file){
@@ -1730,6 +1748,7 @@ $('#btnLogout').addEventListener('click', () => {
   hideTip();
   /* en una compu compartida no quedan datos a la vista detrás del ingreso */
   P = []; SALES = []; PENDING = []; PAST = [];
+  ROL = 'duena'; aplicarRol();
   Object.assign(vt, {fecha:HOY, dia:null, destino:'', pide:vt.pide + 1});
   renderStock(); renderVentas(); refreshAll();
   showLogin(true);

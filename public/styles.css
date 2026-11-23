@@ -240,6 +240,7 @@ html.scrolled .top{box-shadow:var(--toldo),0 14px 22px -18px rgba(43,36,38,.5)}
 .tab:focus-visible{outline-offset:-6px;border-radius:10px}
 .tab-n{min-width:22px;height:22px;padding:0 7px;border-radius:11px;background:var(--wine);color:var(--paper);font-size:12px;font-weight:600;line-height:22px;text-align:center;font-variant-numeric:tabular-nums}
 .top-end{display:flex;justify-content:flex-end;align-items:center}
+.mostrador .top-end{grid-column:3}   /* sin las secciones, Salir sigue a la derecha */
 .logout{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 14px;border:0;border-radius:var(--r-ctl);background:none;color:var(--ink-2);font-size:15px;font-weight:500;cursor:pointer;transition:background-color .2s ease,color .2s ease}
 .logout svg{flex:none;width:19px;height:19px}
 
@@ -251,6 +252,10 @@ main{display:block;padding-top:40px}
 .head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px 40px}
 .head-main{min-width:0}
 .title{margin:0;font-weight:400;font-size:44px;line-height:1.05;letter-spacing:-.022em;text-wrap:balance}
+/* En la cuenta del mostrador, al lado del título se aclara qué cuenta es */
+.title-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+.cuenta{display:inline-flex;align-items:center;gap:8px;margin:0;padding:6px 14px 6px 12px;border-radius:999px;background:var(--wine-soft);box-shadow:inset 0 0 0 1px rgba(155,27,59,.12);font-size:14.5px;font-weight:500;color:var(--wine)}
+.cuenta::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
 .subtitle{margin:10px 0 0;max-width:62ch;font-size:16px;color:var(--ink-2);text-wrap:pretty}
 .actions{display:flex;gap:10px}
 /* Las cifras del stock, al lado del título */
@@ -681,6 +686,7 @@ select.input{-webkit-appearance:none;appearance:none;padding-right:40px;backgrou
 .m-pay{font-size:14.5px;color:var(--ink-2)}
 .m-amt{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}
 .m-sub > span + span{margin-left:8px;padding-left:8px;border-left:1px solid var(--line-2)}
+.m-por{font-weight:500;color:var(--wine)}
 .m-mobile{display:none}
 .mov-total{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:4px;padding:14px 12px 0;border-top:1px solid var(--line-2);font-size:16px;font-weight:500}
 .mov-total b{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
@@ -824,6 +830,9 @@ select.input{-webkit-appearance:none;appearance:none;padding-right:40px;backgrou
   .view{padding-block:0 32px}
   .foot .wrap{padding-block:4px calc(88px + env(safe-area-inset-bottom,0px))}
   .toast{bottom:calc(80px + env(safe-area-inset-bottom,0px))}
+  /* sin la barra de secciones (cuenta del mostrador) no hace falta dejarle lugar abajo */
+  .mostrador .toast{bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+  .mostrador .foot .wrap{padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
   html.locked .toast{bottom:calc(24px + env(safe-area-inset-bottom,0px))}
   .title{font-size:34px}
   .head{gap:16px}
