@@ -588,9 +588,8 @@ function renderVentas(){
 }
 /* Controles del día: la fecha, ‹ › y "Volver a hoy" */
 function syncDia(f){
-  const fecha = $('#vFecha');
-  if (fecha.value !== f) fecha.value = f;
-  fecha.max = HOY;
+  $('#vFechaTxt').textContent = fechaCorta(f);
+  $('#vFecha').setAttribute('aria-label', `Elegir el día. Ahora: ${f === HOY ? 'hoy, ' : ''}${diaMes(f)}`);
   $('#vNext').disabled = f >= HOY;
   $('#vHoy').hidden = f === HOY;
 }
@@ -625,7 +624,8 @@ async function irA(f){
 $('#vPrev').addEventListener('click', () => irA(sumarDias(vt.destino || vt.fecha || HOY, -1)));
 $('#vNext').addEventListener('click', () => irA(sumarDias(vt.destino || vt.fecha || HOY, 1)));
 $('#vHoy').addEventListener('click', () => { irA(HOY); $('#vPrev').focus({preventScroll:true}); });
-$('#vFecha').addEventListener('change', e => { if (/^\d{4}-\d\d-\d\d$/.test(e.target.value)) irA(e.target.value); });
+/* El calendario (con el diseño de la página) elige cualquier día hasta hoy */
+Desplegables.calendario({boton:$('#vFecha'), valor:() => vt.destino || vt.fecha || HOY, max:() => HOY, alElegir:f => irA(f)});
 $('#wkPlot').addEventListener('click', e => { const c = e.target.closest('.wk-col'); if (c && c.dataset.f !== (vt.destino || vt.fecha)) irA(c.dataset.f); });
 $('#ledger').addEventListener('click', e => { const b = e.target.closest('.mov-row'); if (b) openVenta(+b.dataset.venta); });
 $('#vPrint').addEventListener('click', () => imprimir(cierreHTML(diaElegido())));
@@ -742,6 +742,7 @@ function placeBubbles(instant){
 }
 function setView(v){
   if (esMostrador()) v = 'stock';
+  Desplegables.cerrar();
   const venia = $('#tab-ventas').getAttribute('aria-selected') === 'true';
   if (v === 'ventas' && !venia && (vt.fecha !== HOY || vt.destino)) irA(HOY);
   document.querySelectorAll('.tab').forEach(t => {
@@ -789,12 +790,13 @@ const plain = s => String(s).replace(/<[^>]+>/g, '');
 function say(t){ live.textContent = ''; setTimeout(() => { live.textContent = t; }, 80); }
 function setInert(on){
   [...document.body.children].forEach(el => {
-    if (el === overlay || el.id === 'toast' || /^(SCRIPT|STYLE|LINK|META|TITLE)$/.test(el.tagName)) return;
+    if (el === overlay || el.id === 'toast' || el.id === 'capa' || /^(SCRIPT|STYLE|LINK|META|TITLE)$/.test(el.tagName)) return;
     el.inert = on;
   });
 }
 function openSheet(html, label, wide){
   clearTimeout(closeTimer);
+  Desplegables.cerrar();
   body.innerHTML = html;
   sheet.setAttribute('aria-label', label);
   sheet.classList.toggle('wide', wide === true);
@@ -819,6 +821,7 @@ function restoreFocus(back){
 }
 function closeSheet(force){
   if (!isOpen()) return;
+  Desplegables.cerrar();
   if (mode === 'upload' && up.sending){ toast('Esperá a que terminen de subirse las fotos.'); return; }
   if (!force && mode === 'upload' && up.rows.length){ upAskDiscard(); return; }
   if (mode === 'editor') edKeep();

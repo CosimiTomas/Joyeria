@@ -23,6 +23,7 @@ ejemplo.js     datos de prueba
 seed.js        reinicia la base con los datos de prueba
 schema.sql     estructura de las tablas (solo referencia: el servidor las crea solo)
 public/        la app: index.html, styles.css, app.js, categorias.js, img/
+               desplegables.js: listas y calendario con el diseño de la página (en lugar de los del navegador)
 ```
 
 ## Categorías

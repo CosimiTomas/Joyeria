@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Jost:wght@300..700&family=Kaushan+Script&display=swap">
 <link rel="stylesheet" href="/styles.css">
 <script src="/categorias.js" defer></script>
+<script src="/desplegables.js" defer></script>
 <script src="/app.js" defer></script>
 </head>
 <body>
@@ -179,7 +180,7 @@
           <div class="v-tools">
             <div class="dia" role="group" aria-label="Elegir el día">
               <button type="button" class="dia-btn" id="vPrev" aria-label="Día anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6 8.5 12l6 6"/></svg></button>
-              <label class="dia-fecha"><span class="sr-only">Fecha</span><input type="date" id="vFecha" name="vFecha"></label>
+              <button type="button" class="dia-fecha" id="vFecha"><span id="vFechaTxt"></span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg></button>
               <button type="button" class="dia-btn" id="vNext" aria-label="Día siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 6 6 6-6 6"/></svg></button>
             </div>
             <button type="button" class="btn btn-quiet" id="vHoy" hidden>Volver a hoy</button>
